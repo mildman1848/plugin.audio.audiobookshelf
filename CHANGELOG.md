@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.33 - 2026-03-12
+
+- Fixed FLAC playback on Audiobookshelf servers that expose fragile HLS transcodes by preferring direct audio file streams when available.
+
 ## 0.1.32 - 2026-03-10
 
 - Fixed podcast playback on Kodi systems that fail direct-play checks when no audio MIME type is exposed for an episode stream.

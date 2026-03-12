@@ -57,6 +57,33 @@ def read_description() -> str:
     return read_name()
 
 
+def read_asset_paths() -> list[Path]:
+    root = addon_root()
+    metadata = root.find("./extension[@point='xbmc.addon.metadata']")
+    if metadata is None:
+        return []
+
+    assets = metadata.find("assets")
+    if assets is None:
+        return []
+
+    addon_root_dir = addon_dir()
+    paths = []
+    seen = set()
+    for node in list(assets):
+        value = (node.text or "").strip()
+        if not value:
+            continue
+        rel = Path(value)
+        if rel in seen:
+            continue
+        asset_path = addon_root_dir / rel
+        if asset_path.is_file():
+            paths.append(rel)
+            seen.add(rel)
+    return paths
+
+
 def build_zip(version: str) -> Path:
     addon_root_dir = addon_dir()
     DIST_DIR.mkdir(exist_ok=True)
@@ -144,7 +171,12 @@ def publish(publish_repo: Path) -> Path:
     target_dir = publish_repo / "repo" / addon_id
     if target_dir.exists():
         shutil.rmtree(target_dir)
-    shutil.copytree(addon_root_dir, target_dir)
+    target_dir.mkdir(parents=True, exist_ok=True)
+    shutil.copy2(addon_root_dir / "addon.xml", target_dir / "addon.xml")
+    for rel_path in read_asset_paths():
+        destination = target_dir / rel_path
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(addon_root_dir / rel_path, destination)
     shutil.copy2(archive, target_dir / archive.name)
     write_index(target_dir, version)
     update_addons_xml(publish_repo)
