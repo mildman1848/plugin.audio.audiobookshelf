@@ -72,7 +72,7 @@ All notable changes to this project will be documented in this file.
 
 ## 0.1.16 - 2026-02-21
 
-- Improved `Weiterhoeren` and `Serien fortsetzen` by merging `items-in-progress` with a paged `listening-sessions` fallback and deduplicating unfinished entries.
+- Improved `Weiterhören` and `Serien fortsetzen` by merging `items-in-progress` with a paged `listening-sessions` fallback and deduplicating unfinished entries.
 
 ## 0.1.15 - 2026-02-21
 
@@ -84,7 +84,7 @@ All notable changes to this project will be documented in this file.
 
 ## 0.1.13 - 2026-02-21
 
-- Fixed `Weiterhoeren` for ABS payloads that only provide `itemId` or `libraryItemId` by resolving item details lazily.
+- Fixed `Weiterhören` for ABS payloads that only provide `itemId` or `libraryItemId` by resolving item details lazily.
 
 ## 0.1.12 - 2026-02-21
 
