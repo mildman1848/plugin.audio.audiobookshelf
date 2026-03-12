@@ -1,0 +1,11 @@
+.git/
+dist/
+node_modules/
+__pycache__/
+*.zip
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg

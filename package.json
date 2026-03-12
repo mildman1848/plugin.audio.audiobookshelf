@@ -1,0 +1,17 @@
+{
+  "name": "plugin.audio.audiobookshelf",
+  "version": "0.1.32",
+  "private": true,
+  "description": "Tooling configuration for the plugin.audio.audiobookshelf repository",
+  "scripts": {
+    "build": "python3 scripts/build_release.py",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:python": "sh -c 'files=$(find . -path \"./.git\" -prune -o -path \"./node_modules\" -prune -o -path \"./dist\" -prune -o -path \"*/__pycache__/*\" -prune -o -name \"*.py\" -print); if [ -n \"$files\" ]; then python3 -m py_compile $files; else echo \"No Python files to validate\"; fi'",
+    "lint:xml": "sh -c 'find . -path \"./.git\" -prune -o -path \"./node_modules\" -prune -o -path \"./dist\" -prune -o -name \"*.xml\" -print0 | xargs -0 xmllint --noout'",
+    "validate": "npm run lint:python && npm run lint:xml && npm run build"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2"
+  }
+}

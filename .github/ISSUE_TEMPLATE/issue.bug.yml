@@ -1,0 +1,51 @@
+name: Bug report
+description: Report a reproducible problem
+title: "[BUG] <title>"
+labels: [bug]
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search existing issues first.
+      options:
+        - label: I have searched the existing issues
+          required: true
+  - type: textarea
+    attributes:
+      label: Current behavior
+      description: What is happening now?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: What should happen instead?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Install ...
+        2. Open ...
+        3. Select ...
+        4. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Environment
+      value: |
+        - Kodi version:
+        - OS / device:
+        - Input method: remote / keyboard / touch
+        - PVR addon:
+      render: markdown
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Relevant logs or screenshots
+      description: Paste Kodi log lines or attach screenshots if available.
+    validations:
+      required: false
