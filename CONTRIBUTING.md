@@ -10,14 +10,14 @@
 
 ## Files of interest
 
-| File                                    | Purpose                                           |
-| --------------------------------------- | ------------------------------------------------- |
-| `plugin.audio.audiobookshelf/`          | Kodi plugin addon payload                         |
-| `plugin.audio.audiobookshelf/main.py`   | Entry point for routing, menus and playback       |
-| `plugin.audio.audiobookshelf/resources/`| API, player, i18n and settings files              |
-| `scripts/build_release.py`              | Builds the addon ZIP                              |
-| `scripts/publish_to_repo.py`            | Publishes the addon into the Kodi repository repo |
-| `.github/workflows/release-publish.yml` | Cross-repo release publishing                     |
+| File                                     | Purpose                                           |
+| ---------------------------------------- | ------------------------------------------------- |
+| `plugin.audio.audiobookshelf/`           | Kodi plugin addon payload                         |
+| `plugin.audio.audiobookshelf/main.py`    | Entry point for routing, menus and playback       |
+| `plugin.audio.audiobookshelf/resources/` | API, player, i18n and settings files              |
+| `scripts/build_release.py`               | Builds the addon ZIP                              |
+| `scripts/publish_to_repo.py`             | Publishes the addon into the Kodi repository repo |
+| `.github/workflows/release-publish.yml`  | Cross-repo release publishing                     |
 
 ## Local validation
 
