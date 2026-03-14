@@ -12,6 +12,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
+    env:
+      ADDON_ID: plugin.audio.audiobookshelf
+      ADDON_PATH: plugin.audio.audiobookshelf
     steps:
       - name: Check out source repository
         uses: actions/checkout@v6
@@ -23,6 +26,43 @@ jobs:
 
       - name: Build release archive
         run: python3 scripts/build_release.py
+
+      - name: Determine release metadata
+        id: release_meta
+        run: |
+          VERSION="$(python3 -c "from xml.etree import ElementTree; print(ElementTree.parse('${ADDON_PATH}/addon.xml').getroot().attrib['version'])")"
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG_NAME="${{ github.event.release.tag_name }}"
+            RELEASE_TITLE="${{ github.event.release.name || '' }}"
+          else
+            TAG_NAME="${VERSION}"
+            RELEASE_TITLE=""
+          fi
+          if [ -z "${RELEASE_TITLE}" ]; then
+            RELEASE_TITLE="${ADDON_ID} ${VERSION}"
+          fi
+          {
+            echo "version=${VERSION}"
+            echo "tag_name=${TAG_NAME}"
+            echo "release_title=${RELEASE_TITLE}"
+            echo "asset_path=dist/${ADDON_ID}-${VERSION}.zip"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Publish release asset in source repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG_NAME="${{ steps.release_meta.outputs.tag_name }}"
+          ASSET_PATH="${{ steps.release_meta.outputs.asset_path }}"
+          RELEASE_TITLE="${{ steps.release_meta.outputs.release_title }}"
+
+          if gh release view "${TAG_NAME}" >/dev/null 2>&1; then
+            gh release upload "${TAG_NAME}" "${ASSET_PATH}" --clobber
+          else
+            gh release create "${TAG_NAME}" "${ASSET_PATH}" \
+              --title "${RELEASE_TITLE}" \
+              --notes "Automatisch erstelltes Addon-Release fuer ${ADDON_ID}."
+          fi
 
       - name: Check out Kodi repository
         uses: actions/checkout@v6
@@ -42,7 +82,7 @@ jobs:
             exit 0
           fi
 
-          VERSION="$(python3 -c "from xml.etree import ElementTree; print(ElementTree.parse('../plugin.audio.audiobookshelf/addon.xml').getroot().attrib['version'])")"
+          VERSION="${{ steps.release_meta.outputs.version }}"
 
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -54,15 +94,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.KODI_REPO_TOKEN }}
         run: |
-          VERSION="$(python3 -c "from xml.etree import ElementTree; print(ElementTree.parse('plugin.audio.audiobookshelf/addon.xml').getroot().attrib['version'])")"
+          VERSION="${{ steps.release_meta.outputs.version }}"
           if gh release view "plugin.audio.audiobookshelf-${VERSION}" --repo mildman1848/mildman1848.github.io >/dev/null 2>&1; then
             gh release upload "plugin.audio.audiobookshelf-${VERSION}" \
-              "dist/plugin.audio.audiobookshelf-${VERSION}.zip" \
+              "${{ steps.release_meta.outputs.asset_path }}" \
               --repo mildman1848/mildman1848.github.io \
               --clobber
           else
             gh release create "plugin.audio.audiobookshelf-${VERSION}" \
-              "dist/plugin.audio.audiobookshelf-${VERSION}.zip" \
+              "${{ steps.release_meta.outputs.asset_path }}" \
               --repo mildman1848/mildman1848.github.io \
               --title "plugin.audio.audiobookshelf ${VERSION}" \
               --notes "Automatisch aus mildman1848/plugin.audio.audiobookshelf veroeffentlicht."

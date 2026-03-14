@@ -8,7 +8,7 @@ Kodi-Addon für Audiobookshelf mit Login, Wiedergabe, Fortschritts-Sync und STRM
 - `plugin.audio.audiobookshelf/resources/lib/`: API-, Player- und Hilfslogik
 - `scripts/build_release.py`: erzeugt das Release-ZIP unter `dist/`
 - `scripts/publish_to_repo.py`: publiziert das Addon nach `mildman1848.github.io`
-- `.github/workflows/release-publish.yml`: veröffentlicht nach einem GitHub-Release automatisch in die Kodi-Repo
+- `.github/workflows/release-publish.yml`: veröffentlicht das Release-ZIP im GitHub-Repo und publiziert es anschließend automatisch in die Kodi-Repo
 
 ## Repository-Hygiene
 
