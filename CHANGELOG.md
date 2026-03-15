@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.34 - 2026-03-15
+
+- Fixed playback URL signing so external podcast/feed URLs no longer receive an ABS token that breaks playback.
+- Restricted playback source selection to ABS-hosted URLs only, preferring local/server-provided ABS files instead of falling back to external feed links.
+
 ## 0.1.33 - 2026-03-12
 
 - Fixed FLAC playback on Audiobookshelf servers that expose fragile HLS transcodes by preferring direct audio file streams when available.
