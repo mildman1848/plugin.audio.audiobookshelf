@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import json
 import os
-from urllib.parse import urljoin
+from urllib.parse import parse_qsl, urljoin, urlparse
 
 import requests
 import xbmcaddon
@@ -208,12 +208,19 @@ class AbsClient:
     def stream_url_with_token(self, url):
         if not url:
             return ""
-        if url.startswith("http://") or url.startswith("https://"):
+        parsed_base = urlparse(self.base_url)
+        parsed_url = urlparse(url)
+
+        if parsed_url.scheme in ("http", "https"):
+            # External hosts already provide a complete, playable URL and must not be signed with the ABS token.
+            if (parsed_url.scheme, parsed_url.netloc) != (parsed_base.scheme, parsed_base.netloc):
+                return url
             base = url
         else:
             base = self._full(url)
+
         token = self._token()
-        if "token=" in base:
+        if any(key == "token" for key, _ in parse_qsl(urlparse(base).query, keep_blank_values=True)):
             return base
         joiner = "&" if "?" in base else "?"
         return "%s%stoken=%s" % (base, joiner, token)

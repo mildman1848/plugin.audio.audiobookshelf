@@ -1308,11 +1308,20 @@ def resolve_play_url(client, item_id, episode_id=None):
         value = (url or "").lower()
         return value.endswith(".m3u8") or "/hls" in value or "final-output.m3u8" in value
 
+    def is_abs_url(url):
+        if not url:
+            return False
+        low = url.lower()
+        base = (client.base_url or "").lower()
+        return low.startswith("/") or (base and low.startswith(base))
+
     def choose_source(data, prefer_direct=False):
         mime_candidates = list(iter_audio_mime_types(data))
         flac_like = any(mime in ("audio/flac", "audio/x-flac") for mime in mime_candidates)
         candidates = []
         for candidate in iter_audio_urls(data):
+            if not is_abs_url(candidate):
+                continue
             mime_type = next(iter(mime_candidates), "") or mime_type_from_url(candidate)
             candidates.append((candidate, mime_type))
         if not candidates:
@@ -1322,6 +1331,7 @@ def resolve_play_url(client, item_id, episode_id=None):
             url, mime_type = entry
             low = (url or "").lower()
             mime_low = (mime_type or "").lower()
+            abs_local = is_abs_url(url)
             direct_file = (
                 low.endswith((".mp3", ".m4a", ".m4b", ".aac", ".ogg", ".opus", ".flac", ".wav"))
                 or "/file/" in low
@@ -1331,6 +1341,7 @@ def resolve_play_url(client, item_id, episode_id=None):
             flac = mime_low in ("audio/flac", "audio/x-flac") or ".flac" in low
             # Prefer direct file delivery, especially for FLAC where ABS HLS/copy-to-ts is fragile.
             return (
+                0 if abs_local else 1,
                 0 if (prefer_direct and direct_file) else 1,
                 0 if (prefer_direct and flac and direct_file) else 1,
                 1 if hls and (prefer_direct or flac_like or flac) else 0,
