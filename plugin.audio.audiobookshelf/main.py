@@ -250,6 +250,11 @@ def _authors_from_metadata(metadata):
     return out
 
 
+def _primary_author_from_metadata(metadata):
+    authors = _authors_from_metadata(metadata)
+    return authors[0] if authors else ""
+
+
 def _narrators_from_metadata(metadata):
     out = []
     for n in _to_list(metadata.get("narrators")):
@@ -471,6 +476,7 @@ def build_audiobook_nfo(item, asin=""):
     asin = asin or item_asin(item)
 
     authors = _authors_from_metadata(metadata)
+    primary_author = _primary_author_from_metadata(metadata)
     narrators = _narrators_from_metadata(metadata)
     genres = _genres_from_metadata(metadata)
 
@@ -496,10 +502,10 @@ def build_audiobook_nfo(item, asin=""):
         lines.append("  <uniqueid type=\"asin\" default=\"true\">%s</uniqueid>" % _xml_escape(asin))
     _xml_add(lines, "id", _first_non_empty(item.get("id")))
 
-    for author in authors:
-        _xml_add(lines, "artist", author)
-        _xml_add(lines, "albumArtist", author)
-        _xml_add(lines, "albumartistsort", _sort_title(author))
+    if primary_author:
+        _xml_add(lines, "artist", primary_author)
+        _xml_add(lines, "albumArtist", primary_author)
+        _xml_add(lines, "albumartistsort", _sort_title(primary_author))
     for narrator in narrators:
         _xml_add(lines, "credits", narrator)
     for genre in genres:

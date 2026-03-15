@@ -2,6 +2,11 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.36 - 2026-03-15
+
+- Restricted exported audiobook NFO artist fields to the primary author only, so multi-author Audible books no longer reintroduce extra Kodi interpreters during STRM sync.
+- Kept narrators in exported NFO `credits` only; they are no longer duplicated into album artist fields.
+
 ## 0.1.35 - 2026-03-15
 
 - Fixed UI language resolution for the `Use Kodi language` setting so German and English Kodi locale variants use a consistent translated menu set.
