@@ -126,13 +126,38 @@ def _language_mode():
     return 0
 
 
+def _kodi_language_family():
+    try:
+        value = (xbmc.getLanguage(xbmc.ISO_639_1) or "").strip().lower()
+    except Exception:
+        value = ""
+    if not value:
+        try:
+            value = (xbmc.getLanguage() or "").strip().lower()
+        except Exception:
+            value = ""
+    if value.startswith("de"):
+        return "de"
+    if value.startswith("en"):
+        return "en"
+    return ""
+
+
 def tr(msg_id, fallback=""):
     mode = _language_mode()
+    language = ""
     if mode == 1:
+        language = "de"
+    elif mode == 2:
+        language = "en"
+    else:
+        language = _kodi_language_family()
+
+    if language == "de":
         text = _DE_OVERRIDES.get(int(msg_id), "")
         if text:
             return text
-    elif mode == 2:
+    elif language == "en":
         text = _EN_OVERRIDES.get(int(msg_id), "")
         if text:
             return text

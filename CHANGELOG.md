@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.35 - 2026-03-15
+
+- Fixed UI language resolution for the `Use Kodi language` setting so German and English Kodi locale variants use a consistent translated menu set.
+
 ## 0.1.34 - 2026-03-15
 
 - Fixed playback URL signing so external podcast/feed URLs no longer receive an ABS token that breaks playback.
