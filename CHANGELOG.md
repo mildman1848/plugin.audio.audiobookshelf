@@ -2,6 +2,12 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.37 - 2026-03-16
+
+- Fixed playback selection for multi-track audiobooks so Kodi no longer opens a short single-track ABS file instead of the proper book stream.
+- Hardened progress sync against empty or non-JSON ABS PATCH responses and against final sync attempts after playback has already stopped.
+- Removed forced music visualisation window activation to avoid repeated `MusicVisualisation` and `fullscreenmusic` errors on incompatible Kodi skins.
+
 ## 0.1.36 - 2026-03-15
 
 - Restricted exported audiobook NFO artist fields to the primary author only, so multi-author Audible books no longer reintroduce extra Kodi interpreters during STRM sync.

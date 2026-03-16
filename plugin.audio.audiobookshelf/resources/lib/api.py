@@ -112,7 +112,16 @@ class AbsClient:
         r = self.session.patch(self._full(path), headers=self.auth_headers(), data=json.dumps(payload or {}), timeout=30)
         if r.status_code >= 400:
             raise AbsApiError("PATCH %s failed: HTTP %s" % (path, r.status_code))
-        return r.json() if r.text else {}
+        body = (r.text or "").strip()
+        if not body:
+            return {}
+        content_type = (r.headers.get("Content-Type") or "").lower()
+        if "json" not in content_type:
+            return {}
+        try:
+            return r.json()
+        except ValueError:
+            return {}
 
     def libraries(self):
         return self.get("/api/libraries")

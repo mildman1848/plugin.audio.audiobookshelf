@@ -17,6 +17,8 @@ class AbsPlayerMonitor(xbmc.Monitor):
         self.interval = max(5, int(utils.ADDON.getSetting("progress_sync_interval") or "30"))
         self.finished_threshold = max(50, min(100, int(utils.ADDON.getSetting("mark_finished_threshold") or "97")))
         self._resume_applied = False
+        self._last_current_time = self.resume_time
+        self._last_total_time = 0.0
 
     def run(self):
         utils.debug("Player monitor started for item_id=%s episode_id=%s" % (self.item_id, self.episode_id or ""))
@@ -50,8 +52,14 @@ class AbsPlayerMonitor(xbmc.Monitor):
         try:
             if not self.player.isPlayingAudio() and not final:
                 return
-            current_time = float(self.player.getTime() or 0.0)
-            total_time = float(self.player.getTotalTime() or 0.0)
+            if final and not self.player.isPlayingAudio():
+                current_time = float(self._last_current_time or 0.0)
+                total_time = float(self._last_total_time or 0.0)
+            else:
+                current_time = float(self.player.getTime() or 0.0)
+                total_time = float(self.player.getTotalTime() or 0.0)
+                self._last_current_time = max(self._last_current_time, current_time)
+                self._last_total_time = max(self._last_total_time, total_time)
             is_finished = False
             if total_time > 0:
                 is_finished = (current_time / total_time) * 100.0 >= self.finished_threshold
@@ -66,5 +74,10 @@ class AbsPlayerMonitor(xbmc.Monitor):
                 "Progress synced item_id=%s episode_id=%s current=%.2f duration=%.2f finished=%s final=%s"
                 % (self.item_id, self.episode_id or "", current_time, total_time, is_finished, final)
             )
+        except RuntimeError as exc:
+            if final:
+                utils.debug("Skipping final progress sync after playback stop: %s" % exc)
+                return
+            utils.log("Progress sync failed: %s" % exc, xbmc.LOGWARNING)
         except Exception as exc:
             utils.log("Progress sync failed: %s" % exc, xbmc.LOGWARNING)

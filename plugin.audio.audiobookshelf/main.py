@@ -1303,8 +1303,9 @@ def list_entity_items(client, library_id, entity_type, entity_id, entity_name=""
 def resolve_play_url(client, item_id, episode_id=None):
     item = client.item(item_id)
     episode = None
+    media = item.get("media") or {}
     if episode_id:
-        episodes = ((item.get("media") or {}).get("episodes") or [])
+        episodes = (media.get("episodes") or [])
         for ep in episodes:
             if str(ep.get("id") or "") == str(episode_id):
                 episode = ep
@@ -1321,12 +1322,22 @@ def resolve_play_url(client, item_id, episode_id=None):
         base = (client.base_url or "").lower()
         return low.startswith("/") or (base and low.startswith(base))
 
-    def choose_source(data, prefer_direct=False):
+    def is_track_file_url(url):
+        low = (url or "").lower()
+        return (
+            low.endswith((".mp3", ".m4a", ".m4b", ".aac", ".ogg", ".opus", ".flac", ".wav"))
+            or "/file/" in low
+            or "/download" in low
+        )
+
+    def choose_source(data, prefer_direct=False, allow_track_files=True):
         mime_candidates = list(iter_audio_mime_types(data))
         flac_like = any(mime in ("audio/flac", "audio/x-flac") for mime in mime_candidates)
         candidates = []
         for candidate in iter_audio_urls(data):
             if not is_abs_url(candidate):
+                continue
+            if not allow_track_files and is_track_file_url(candidate):
                 continue
             mime_type = next(iter(mime_candidates), "") or mime_type_from_url(candidate)
             candidates.append((candidate, mime_type))
@@ -1338,11 +1349,7 @@ def resolve_play_url(client, item_id, episode_id=None):
             low = (url or "").lower()
             mime_low = (mime_type or "").lower()
             abs_local = is_abs_url(url)
-            direct_file = (
-                low.endswith((".mp3", ".m4a", ".m4b", ".aac", ".ogg", ".opus", ".flac", ".wav"))
-                or "/file/" in low
-                or "/download" in low
-            )
+            direct_file = is_track_file_url(url)
             hls = is_hls_url(url)
             flac = mime_low in ("audio/flac", "audio/x-flac") or ".flac" in low
             # Prefer direct file delivery, especially for FLAC where ABS HLS/copy-to-ts is fragile.
@@ -1359,19 +1366,25 @@ def resolve_play_url(client, item_id, episode_id=None):
         url, mime_type = candidates[0]
         return client.stream_url_with_token(url), mime_type
 
+    multi_track_audiobook = not episode_id and len(media.get("tracks") or []) > 1
+
     for payload in (episode, item):
         if not isinstance(payload, dict):
             continue
-        stream_url, mime_type = choose_source(payload, prefer_direct=True)
+        stream_url, mime_type = choose_source(
+            payload,
+            prefer_direct=not multi_track_audiobook,
+            allow_track_files=not multi_track_audiobook,
+        )
         if stream_url and (not is_hls_url(stream_url) or mime_type not in ("audio/flac", "audio/x-flac")):
             return stream_url, mime_type
 
     play = client.play_item(item_id, episode_id=episode_id)
-    stream_url, mime_type = choose_source(play, prefer_direct=False)
+    stream_url, mime_type = choose_source(play, prefer_direct=False, allow_track_files=not multi_track_audiobook)
     if stream_url:
         return stream_url, mime_type
 
-    inode = find_first_key(item, ["ino", "inode"])
+    inode = find_first_key(item, ["ino", "inode"]) if not multi_track_audiobook else None
     if inode:
         stream_url = client.stream_url_with_token("/api/items/%s/file/%s" % (item_id, inode))
         return stream_url, next(iter_audio_mime_types(episode or item), "") or mime_type_from_url(stream_url)
@@ -1409,13 +1422,6 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         li.setInfo("music", {"title": title})
 
     xbmcplugin.setResolvedUrl(utils.HANDLE, True, li)
-
-    # Bring music player UI to foreground automatically.
-    for cmd in ("ActivateWindow(visualisation)", "ActivateWindow(MusicVisualisation)", "ActivateWindow(fullscreenmusic)"):
-        try:
-            xbmc.executebuiltin(cmd)
-        except Exception:
-            pass
 
     monitor = AbsPlayerMonitor(client, item_id=item_id, episode_id=(episode_id or None), resume_time=resume)
     monitor.run()
