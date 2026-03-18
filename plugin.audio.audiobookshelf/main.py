@@ -1408,6 +1408,10 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
 
     li = xbmcgui.ListItem(path=stream_url)
     li.setProperty("IsPlayable", "true")
+    try:
+        li.setArt(art_for_item(client, item_id))
+    except Exception:
+        pass
     if mime_type:
         try:
             li.setMimeType(mime_type)

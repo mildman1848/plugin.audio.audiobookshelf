@@ -4,6 +4,10 @@ Deutsch: [CHANGELOG.DE.md](CHANGELOG.DE.md)
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased
+
+- Fixed missing cover art during active playback by carrying the Audiobookshelf item artwork into the resolved Kodi player item.
+
 ## 0.1.37 - 2026-03-16
 
 - Fixed playback selection for multi-track audiobooks so Kodi no longer opens a short single-track ABS file instead of the proper book stream.
