@@ -1,5 +1,7 @@
 # Contributing to plugin.audio.audiobookshelf
 
+Deutsch: [CONTRIBUTING.DE.md](CONTRIBUTING.DE.md)
+
 ## Before opening a pull request
 
 - Keep changes focused on the Audiobookshelf addon or its release automation.
