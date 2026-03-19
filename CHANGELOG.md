@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 
 - Fixed missing cover art during active playback by carrying the Audiobookshelf item artwork into the resolved Kodi player item.
+- Added playback-specific music artwork fields and richer resolved item metadata so Kodi keeps showing the audiobook cover after playback starts.
 
 ## 0.1.37 - 2026-03-16
 

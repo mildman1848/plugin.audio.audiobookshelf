@@ -606,6 +606,21 @@ def art_for_item(client, item_id):
     return {"thumb": cover, "icon": cover, "poster": cover, "fanart": cover}
 
 
+def playback_art_for_item(client, item_id):
+    art = dict(art_for_item(client, item_id))
+    cover = art.get("thumb") or ""
+    if cover:
+        art.update(
+            {
+                "album.thumb": cover,
+                "album.icon": cover,
+                "album.poster": cover,
+                "album.fanart": cover,
+            }
+        )
+    return art
+
+
 def audiobook_libraries(client):
     libs = parse_libraries(client.libraries())
     return [lib for lib in libs if library_kind(lib) == "audiobook"]
@@ -1392,6 +1407,12 @@ def resolve_play_url(client, item_id, episode_id=None):
 
 
 def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=""):
+    item = {}
+    try:
+        item = client.item(item_id) or {}
+    except Exception:
+        item = {"id": item_id}
+
     if resume <= 0:
         try:
             p = client.progress(item_id, episode_id=episode_id or None) or {}
@@ -1406,10 +1427,24 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
     if not stream_url:
         raise AbsApiError("No stream URL found for selected item")
 
-    li = xbmcgui.ListItem(path=stream_url)
+    info = item_info_labels(item, fallback_title=title)
+    if title and not info.get("title"):
+        info["title"] = title
+    if duration > 0 and not info.get("duration"):
+        try:
+            info["duration"] = int(float(duration))
+        except Exception:
+            pass
+
+    art = playback_art_for_item(client, item_id)
+    cover = art.get("thumb") or ""
+
+    li = xbmcgui.ListItem(label=info.get("title") or title or item_id, path=stream_url)
     li.setProperty("IsPlayable", "true")
     try:
-        li.setArt(art_for_item(client, item_id))
+        li.setArt(art)
+        if cover:
+            li.setProperty("fanart_image", cover)
     except Exception:
         pass
     if mime_type:
@@ -1422,8 +1457,8 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         li.setProperty("ResumeTime", str(resume))
         if duration > 0:
             li.setProperty("TotalTime", str(duration))
-    if title:
-        li.setInfo("music", {"title": title})
+    if info:
+        li.setInfo("music", info)
 
     xbmcplugin.setResolvedUrl(utils.HANDLE, True, li)
 
