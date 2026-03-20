@@ -6,6 +6,11 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.41 - 2026-03-20
+
+- Erkennung mehrteiliger Hörbücher für Server behoben, die die vollständige Track-Liste erst in der ABS-`/play`-Antwort statt schon in `item.media.tracks` liefern.
+- Zusätzliche Debug-Ausgabe zur Track-Erkennung ergänzt, damit im Kodi-Log sichtbar ist, ob ein ausgewähltes Hörbuch als Mehrteiler erkannt wurde.
+
 ## 0.1.40 - 2026-03-20
 
 - Fallback im Wiedergabe-Monitor für mehrteilige Hörbücher ergänzt, der nach einer beendeten Teil-Datei explizit die nächste ABS-Datei startet, wenn Kodi nicht selbst weiterschaltet.

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.41 - 2026-03-20
+
+- Fixed multi-part audiobook detection for servers that only expose the full track list in the ABS `/play` response instead of `item.media.tracks`.
+- Added debug logging for item/play track detection so Kodi logs now show whether multi-track playback was recognized for a selected audiobook.
+
 ## 0.1.40 - 2026-03-20
 
 - Added a playback-monitor fallback for multi-part audiobooks that explicitly starts the next ABS part file when Kodi stops after a finished part instead of advancing on its own.

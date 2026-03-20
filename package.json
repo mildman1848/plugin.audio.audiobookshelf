@@ -1,6 +1,6 @@
 {
   "name": "plugin.audio.audiobookshelf",
-  "version": "0.1.40",
+  "version": "0.1.41",
   "private": true,
   "description": "Tooling configuration for the plugin.audio.audiobookshelf repository",
   "scripts": {

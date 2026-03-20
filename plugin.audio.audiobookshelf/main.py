@@ -1406,22 +1406,37 @@ def resolve_play_url(client, item_id, episode_id=None):
     return "", ""
 
 
-def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_art):
+def _track_list_from_play_data(play_data):
+    if not isinstance(play_data, dict):
+        return []
+    tracks = find_first_key(play_data, ["tracks", "audioTracks"]) or []
+    return tracks if isinstance(tracks, list) else []
+
+
+def _merged_track_sources(item, play_data):
     item = _as_item(item) or {}
     media = item.get("media") or {}
-    tracks = media.get("tracks") or []
-    play_tracks = []
-    if isinstance(play_data, dict):
-        play_tracks = find_first_key(play_data, ["tracks", "audioTracks"]) or []
-        if not isinstance(play_tracks, list):
-            play_tracks = []
+    item_tracks = media.get("tracks") or []
+    if not isinstance(item_tracks, list):
+        item_tracks = []
+    play_tracks = _track_list_from_play_data(play_data)
+    track_count = max(len(item_tracks), len(play_tracks))
+    merged = []
+    for idx in range(track_count):
+        item_track = item_tracks[idx] if idx < len(item_tracks) and isinstance(item_tracks[idx], dict) else {}
+        play_track = play_tracks[idx] if idx < len(play_tracks) and isinstance(play_tracks[idx], dict) else {}
+        merged.append((item_track, play_track))
+    return media, merged
+
+
+def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_art):
+    media, track_sources = _merged_track_sources(item, play_data)
     total_duration = _as_float(media.get("duration"), 0.0)
     playlist_tracks = []
+    cursor = 0.0
 
-    for idx, track in enumerate(tracks):
-        if not isinstance(track, dict):
-            continue
-        play_track = play_tracks[idx] if idx < len(play_tracks) and isinstance(play_tracks[idx], dict) else {}
+    for idx, pair in enumerate(track_sources):
+        track, play_track = pair
         stream_url = ""
         mime_type = ""
         for source in (track, play_track):
@@ -1435,17 +1450,40 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
         if not stream_url:
             continue
 
-        start = _as_float(_first_non_empty(track.get("startOffset"), track.get("start"), track.get("offset"), play_track.get("startOffset"), play_track.get("start"), play_track.get("offset")), 0.0)
+        start = _as_float(_first_non_empty(track.get("startOffset"), track.get("start"), track.get("offset"), play_track.get("startOffset"), play_track.get("start"), play_track.get("offset")), cursor)
         duration = _as_float(_first_non_empty(track.get("duration"), track.get("length"), play_track.get("duration"), play_track.get("length")), 0.0)
-        if duration <= 0 and idx + 1 < len(tracks):
-            next_track = tracks[idx + 1] if isinstance(tracks[idx + 1], dict) else {}
-            next_start = _as_float(_first_non_empty(next_track.get("startOffset"), next_track.get("start"), next_track.get("offset")), 0.0)
+        if duration <= 0 and idx + 1 < len(track_sources):
+            next_track, next_play_track = track_sources[idx + 1]
+            next_start = _as_float(
+                _first_non_empty(
+                    next_track.get("startOffset"),
+                    next_track.get("start"),
+                    next_track.get("offset"),
+                    next_play_track.get("startOffset"),
+                    next_play_track.get("start"),
+                    next_play_track.get("offset"),
+                ),
+                0.0,
+            )
             if next_start > start:
                 duration = max(0.0, next_start - start)
+        if duration <= 0:
+            fallback_total = _as_float(
+                _first_non_empty(
+                    play_track.get("metaTags", {}).get("duration") if isinstance(play_track.get("metaTags"), dict) else "",
+                    play_track.get("duration"),
+                    track.get("duration"),
+                    media.get("duration"),
+                ),
+                0.0,
+            )
+            if fallback_total > start:
+                duration = max(0.0, fallback_total - start)
 
         track_title = _first_non_empty(
             track.get("title"),
             track.get("metadata", {}).get("title") if isinstance(track.get("metadata"), dict) else "",
+            play_track.get("title"),
             "%s (%d)" % (fallback_info.get("title") or item_title(item), idx + 1),
         )
         info = dict(fallback_info or {})
@@ -1476,6 +1514,7 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
                 "duration": max(0.0, duration),
             }
         )
+        cursor = max(cursor, start + duration)
 
     if playlist_tracks and total_duration <= 0:
         last_track = playlist_tracks[-1]
@@ -1530,15 +1569,20 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         except Exception:
             resume = 0.0
 
-    media = (item.get("media") or {}) if isinstance(item, dict) else {}
-    multi_track_audiobook = not episode_id and len(media.get("tracks") or []) > 1
-
     play_payload = {}
-    if multi_track_audiobook:
+    if not episode_id:
         try:
             play_payload = client.play_item(item_id, episode_id=None) or {}
         except Exception:
             play_payload = {}
+    media = (item.get("media") or {}) if isinstance(item, dict) else {}
+    item_track_count = len(media.get("tracks") or []) if isinstance(media.get("tracks"), list) else 0
+    play_track_count = len(_track_list_from_play_data(play_payload))
+    multi_track_audiobook = not episode_id and max(item_track_count, play_track_count) > 1
+    utils.debug(
+        "Playback track detection item_id=%s item_tracks=%d play_tracks=%d multi_track=%s"
+        % (item_id, item_track_count, play_track_count, multi_track_audiobook)
+    )
 
     info = item_info_labels(item, fallback_title=title)
     if title and not info.get("title"):
