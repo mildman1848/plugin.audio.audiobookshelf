@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.39 - 2026-03-20
+
+- Fixed streaming playback for multi-part audiobooks by building a Kodi playlist across all ABS track files instead of stopping after the first part file ends.
+- Updated playback progress sync for playlist-based audiobook playback so resume and finished-state calculations still use the full audiobook timeline.
+
+## 0.1.38 - 2026-03-19
+
 - Fixed missing cover art during active playback by carrying the Audiobookshelf item artwork into the resolved Kodi player item.
 - Added playback-specific music artwork fields and richer resolved item metadata so Kodi keeps showing the audiobook cover after playback starts.
 
