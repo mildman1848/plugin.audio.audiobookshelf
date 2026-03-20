@@ -6,6 +6,11 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.42 - 2026-03-20
+
+- Erkennung mehrteiliger Hörbücher für ABS-Antworten behoben, bei denen die echten Teil-Dateien unter `libraryItem.media.tracks` und `media.audioFiles` liegen, währen die oberste `/play`-Antwort nur einen einzelnen zusammengeführten HLS-Stream ausweist.
+- Direkten Fallback für dateibasierte Wiedergabe-URLs aus Track-/Datei-Inodes ergänzt, wenn ABS auf der Item-Seite kein `contentUrl` pro Teil-Datei mitliefert.
+
 ## 0.1.41 - 2026-03-20
 
 - Erkennung mehrteiliger Hörbücher für Server behoben, die die vollständige Track-Liste erst in der ABS-`/play`-Antwort statt schon in `item.media.tracks` liefern.

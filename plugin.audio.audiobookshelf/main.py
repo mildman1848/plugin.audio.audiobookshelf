@@ -1409,6 +1409,9 @@ def resolve_play_url(client, item_id, episode_id=None):
 def _track_list_from_play_data(play_data):
     if not isinstance(play_data, dict):
         return []
+    nested_tracks = find_first_key(play_data.get("libraryItem") or {}, ["tracks"]) or []
+    if isinstance(nested_tracks, list) and nested_tracks:
+        return nested_tracks
     tracks = find_first_key(play_data, ["tracks", "audioTracks"]) or []
     return tracks if isinstance(tracks, list) else []
 
@@ -1416,7 +1419,7 @@ def _track_list_from_play_data(play_data):
 def _merged_track_sources(item, play_data):
     item = _as_item(item) or {}
     media = item.get("media") or {}
-    item_tracks = media.get("tracks") or []
+    item_tracks = media.get("tracks") or media.get("audioFiles") or []
     if not isinstance(item_tracks, list):
         item_tracks = []
     play_tracks = _track_list_from_play_data(play_data)
@@ -1447,6 +1450,11 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
                     break
             if stream_url:
                 break
+        if not stream_url:
+            inode = _first_non_empty(play_track.get("ino"), track.get("ino"))
+            if inode:
+                stream_url = client.stream_url_with_token("/api/items/%s/file/%s" % (item.get("id"), inode))
+                mime_type = next(iter_audio_mime_types(play_track), "") or next(iter_audio_mime_types(track), "") or mime_type_from_url(stream_url)
         if not stream_url:
             continue
 
@@ -1576,7 +1584,8 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         except Exception:
             play_payload = {}
     media = (item.get("media") or {}) if isinstance(item, dict) else {}
-    item_track_count = len(media.get("tracks") or []) if isinstance(media.get("tracks"), list) else 0
+    raw_item_tracks = media.get("tracks") or media.get("audioFiles") or []
+    item_track_count = len(raw_item_tracks) if isinstance(raw_item_tracks, list) else 0
     play_track_count = len(_track_list_from_play_data(play_payload))
     multi_track_audiobook = not episode_id and max(item_track_count, play_track_count) > 1
     utils.debug(

@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.42 - 2026-03-20
+
+- Fixed multi-part audiobook detection for ABS responses that expose the real part files under `libraryItem.media.tracks` and `media.audioFiles` while the top-level `/play` payload only advertises a single merged HLS stream.
+- Added direct fallback construction of per-file playback URLs from track/file inode values when ABS omits a `contentUrl` on the item-side track metadata.
+
 ## 0.1.41 - 2026-03-20
 
 - Fixed multi-part audiobook detection for servers that only expose the full track list in the ABS `/play` response instead of `item.media.tracks`.
