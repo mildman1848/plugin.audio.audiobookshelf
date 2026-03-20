@@ -6,6 +6,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.40 - 2026-03-20
+
+- Added a playback-monitor fallback for multi-part audiobooks that explicitly starts the next ABS part file when Kodi stops after a finished part instead of advancing on its own.
+
 ## 0.1.39 - 2026-03-20
 
 - Fixed streaming playback for multi-part audiobooks by building a Kodi playlist across all ABS track files instead of stopping after the first part file ends.

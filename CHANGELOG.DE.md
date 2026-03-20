@@ -6,6 +6,10 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.40 - 2026-03-20
+
+- Fallback im Wiedergabe-Monitor für mehrteilige Hörbücher ergänzt, der nach einer beendeten Teil-Datei explizit die nächste ABS-Datei startet, wenn Kodi nicht selbst weiterschaltet.
+
 ## 0.1.39 - 2026-03-20
 
 - Streaming-Wiedergabe für mehrteilige Hörbücher behoben, indem Kodi nun eine Playlist über alle ABS-Track-Dateien aufbaut, statt nach Ende der ersten Teil-Datei zu stoppen.

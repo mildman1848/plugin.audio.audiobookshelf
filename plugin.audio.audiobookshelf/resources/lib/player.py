@@ -22,6 +22,55 @@ class AbsPlayerMonitor(xbmc.Monitor):
         self._track_context = track_context or []
         self._current_track = self._find_track_by_time(self.resume_time)
 
+    def _track_index(self, track):
+        if not track or not self._track_context:
+            return -1
+        for idx, entry in enumerate(self._track_context):
+            if entry is track:
+                return idx
+            if self._normalize_path(entry.get("path")) == self._normalize_path(track.get("path")):
+                return idx
+        return -1
+
+    def _next_track(self):
+        idx = self._track_index(self._current_track)
+        if idx < 0:
+            return None
+        next_idx = idx + 1
+        if next_idx >= len(self._track_context):
+            return None
+        return self._track_context[next_idx]
+
+    def _should_continue_with_next_track(self):
+        if not self._track_context:
+            return False
+        track = self._current_track or self._find_track_by_time(self._last_current_time)
+        next_track = self._next_track()
+        if not track or not next_track:
+            return False
+        track_duration = float(track.get("duration", 0.0) or 0.0)
+        if track_duration <= 0:
+            return False
+        played_in_track = max(0.0, float(self._last_current_time or 0.0) - float(track.get("start", 0.0) or 0.0))
+        remaining = max(0.0, track_duration - played_in_track)
+        return remaining <= 3.0 or played_in_track >= max(1.0, track_duration * 0.98)
+
+    def _play_track(self, track):
+        if not track:
+            return False
+        try:
+            listitem = track.get("listitem")
+            path = track.get("path") or ""
+            if not path:
+                return False
+            self.player.play(item=path, listitem=listitem)
+            self._current_track = track
+            utils.debug("Continuing multi-track audiobook with next part: %s" % path)
+            return True
+        except Exception as exc:
+            utils.log("Could not continue with next track: %s" % exc, xbmc.LOGWARNING)
+            return False
+
     @staticmethod
     def _normalize_path(path):
         return (path or "").strip()
@@ -83,6 +132,11 @@ class AbsPlayerMonitor(xbmc.Monitor):
             playing = self.player.isPlayingAudio()
             if playing:
                 last_playing = time.time()
+            elif (time.time() - last_playing) > 1.0 and self._should_continue_with_next_track():
+                if self._play_track(self._next_track()):
+                    last_playing = time.time()
+                    self.waitForAbort(0.2)
+                    continue
             elif (time.time() - last_playing) > 3.0:
                 break
             if not self._resume_applied and self.resume_time > 0:
