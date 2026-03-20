@@ -1406,6 +1406,113 @@ def resolve_play_url(client, item_id, episode_id=None):
     return "", ""
 
 
+def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_art):
+    item = _as_item(item) or {}
+    media = item.get("media") or {}
+    tracks = media.get("tracks") or []
+    play_tracks = []
+    if isinstance(play_data, dict):
+        play_tracks = find_first_key(play_data, ["tracks", "audioTracks"]) or []
+        if not isinstance(play_tracks, list):
+            play_tracks = []
+    total_duration = _as_float(media.get("duration"), 0.0)
+    playlist_tracks = []
+
+    for idx, track in enumerate(tracks):
+        if not isinstance(track, dict):
+            continue
+        play_track = play_tracks[idx] if idx < len(play_tracks) and isinstance(play_tracks[idx], dict) else {}
+        stream_url = ""
+        mime_type = ""
+        for source in (track, play_track):
+            for candidate in iter_audio_urls(source):
+                stream_url = client.stream_url_with_token(candidate)
+                mime_type = next(iter_audio_mime_types(source), "") or mime_type_from_url(candidate)
+                if stream_url:
+                    break
+            if stream_url:
+                break
+        if not stream_url:
+            continue
+
+        start = _as_float(_first_non_empty(track.get("startOffset"), track.get("start"), track.get("offset"), play_track.get("startOffset"), play_track.get("start"), play_track.get("offset")), 0.0)
+        duration = _as_float(_first_non_empty(track.get("duration"), track.get("length"), play_track.get("duration"), play_track.get("length")), 0.0)
+        if duration <= 0 and idx + 1 < len(tracks):
+            next_track = tracks[idx + 1] if isinstance(tracks[idx + 1], dict) else {}
+            next_start = _as_float(_first_non_empty(next_track.get("startOffset"), next_track.get("start"), next_track.get("offset")), 0.0)
+            if next_start > start:
+                duration = max(0.0, next_start - start)
+
+        track_title = _first_non_empty(
+            track.get("title"),
+            track.get("metadata", {}).get("title") if isinstance(track.get("metadata"), dict) else "",
+            "%s (%d)" % (fallback_info.get("title") or item_title(item), idx + 1),
+        )
+        info = dict(fallback_info or {})
+        info["title"] = track_title
+        if duration > 0:
+            info["duration"] = int(duration)
+
+        li = xbmcgui.ListItem(label=track_title, path=stream_url)
+        li.setProperty("IsPlayable", "true")
+        try:
+            li.setArt(fallback_art or {})
+        except Exception:
+            pass
+        if info:
+            li.setInfo("music", info)
+        if mime_type:
+            try:
+                li.setMimeType(mime_type)
+                li.setContentLookup(False)
+            except Exception:
+                pass
+
+        playlist_tracks.append(
+            {
+                "listitem": li,
+                "path": stream_url,
+                "start": max(0.0, start),
+                "duration": max(0.0, duration),
+            }
+        )
+
+    if playlist_tracks and total_duration <= 0:
+        last_track = playlist_tracks[-1]
+        total_duration = max(0.0, last_track.get("start", 0.0) + last_track.get("duration", 0.0))
+    for track in playlist_tracks:
+        track["total"] = total_duration
+    return playlist_tracks, total_duration
+
+
+def start_multi_track_playback(client, item_id, playlist_tracks, resume, total_duration):
+    playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
+    playlist.clear()
+    for track in playlist_tracks:
+        playlist.add(track["path"], track["listitem"])
+
+    start_index = 0
+    seek_time = max(0.0, _as_float(resume, 0.0))
+    for idx, track in enumerate(playlist_tracks):
+        start = float(track.get("start", 0.0) or 0.0)
+        duration = float(track.get("duration", 0.0) or 0.0)
+        if seek_time >= start:
+            start_index = idx
+        if duration > 0 and start <= seek_time < (start + duration):
+            start_index = idx
+            break
+
+    xbmc.Player().play(playlist, startpos=start_index)
+    return AbsPlayerMonitor(
+        client,
+        item_id=item_id,
+        episode_id=None,
+        resume_time=resume,
+        track_context=playlist_tracks,
+        total_duration=total_duration,
+    )
+
+
 def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=""):
     item = {}
     try:
@@ -1423,9 +1530,15 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         except Exception:
             resume = 0.0
 
-    stream_url, mime_type = resolve_play_url(client, item_id, episode_id=episode_id or None)
-    if not stream_url:
-        raise AbsApiError("No stream URL found for selected item")
+    media = (item.get("media") or {}) if isinstance(item, dict) else {}
+    multi_track_audiobook = not episode_id and len(media.get("tracks") or []) > 1
+
+    play_payload = {}
+    if multi_track_audiobook:
+        try:
+            play_payload = client.play_item(item_id, episode_id=None) or {}
+        except Exception:
+            play_payload = {}
 
     info = item_info_labels(item, fallback_title=title)
     if title and not info.get("title"):
@@ -1438,6 +1551,17 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
 
     art = playback_art_for_item(client, item_id)
     cover = art.get("thumb") or ""
+
+    if multi_track_audiobook:
+        playlist_tracks, playlist_duration = build_multi_track_playlist(client, item, play_payload, info, art)
+        if playlist_tracks:
+            monitor = start_multi_track_playback(client, item_id, playlist_tracks, resume, playlist_duration)
+            monitor.run()
+            return
+
+    stream_url, mime_type = resolve_play_url(client, item_id, episode_id=episode_id or None)
+    if not stream_url:
+        raise AbsApiError("No stream URL found for selected item")
 
     li = xbmcgui.ListItem(label=info.get("title") or title or item_id, path=stream_url)
     li.setProperty("IsPlayable", "true")

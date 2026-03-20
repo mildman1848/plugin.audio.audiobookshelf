@@ -7,7 +7,7 @@ from resources.lib import utils
 
 
 class AbsPlayerMonitor(xbmc.Monitor):
-    def __init__(self, api, item_id, episode_id=None, resume_time=0.0):
+    def __init__(self, api, item_id, episode_id=None, resume_time=0.0, track_context=None, total_duration=0.0):
         super().__init__()
         self.api = api
         self.item_id = item_id
@@ -18,7 +18,55 @@ class AbsPlayerMonitor(xbmc.Monitor):
         self.finished_threshold = max(50, min(100, int(utils.ADDON.getSetting("mark_finished_threshold") or "97")))
         self._resume_applied = False
         self._last_current_time = self.resume_time
-        self._last_total_time = 0.0
+        self._last_total_time = float(max(0.0, total_duration or 0.0))
+        self._track_context = track_context or []
+        self._current_track = self._find_track_by_time(self.resume_time)
+
+    @staticmethod
+    def _normalize_path(path):
+        return (path or "").strip()
+
+    def _find_track_by_time(self, current_time):
+        if not self._track_context:
+            return None
+        current_time = float(max(0.0, current_time or 0.0))
+        fallback = self._track_context[0]
+        for track in self._track_context:
+            start = float(track.get("start", 0.0) or 0.0)
+            duration = float(track.get("duration", 0.0) or 0.0)
+            end = start + duration if duration > 0 else start
+            if current_time >= start:
+                fallback = track
+            if duration > 0 and start <= current_time < end:
+                return track
+        return fallback
+
+    def _find_current_track(self):
+        if not self._track_context:
+            return None
+        playing_file = self._normalize_path(getattr(self.player, "getPlayingFile", lambda: "")())
+        for track in self._track_context:
+            if self._normalize_path(track.get("path")) == playing_file:
+                return track
+        return self._current_track or self._find_track_by_time(self._last_current_time)
+
+    def _combined_position(self):
+        current_time = float(self.player.getTime() or 0.0)
+        total_time = float(self.player.getTotalTime() or 0.0)
+        track = self._find_current_track()
+        if not track:
+            return current_time, total_time
+
+        self._current_track = track
+        start = float(track.get("start", 0.0) or 0.0)
+        track_duration = float(track.get("duration", 0.0) or 0.0)
+        combined_current = max(0.0, start + current_time)
+        combined_total = self._last_total_time
+        if combined_total <= 0:
+            combined_total = float(track.get("total", 0.0) or 0.0)
+        if combined_total <= 0:
+            combined_total = start + max(track_duration, total_time)
+        return combined_current, combined_total
 
     def run(self):
         utils.debug("Player monitor started for item_id=%s episode_id=%s" % (self.item_id, self.episode_id or ""))
@@ -30,16 +78,28 @@ class AbsPlayerMonitor(xbmc.Monitor):
             self.waitForAbort(0.2)
 
         last_sync = 0
-        while not self.abortRequested() and self.player.isPlayingAudio():
+        last_playing = time.time()
+        while not self.abortRequested():
+            playing = self.player.isPlayingAudio()
+            if playing:
+                last_playing = time.time()
+            elif (time.time() - last_playing) > 3.0:
+                break
             if not self._resume_applied and self.resume_time > 0:
                 try:
-                    if float(self.player.getTime() or 0.0) < max(1.0, self.resume_time - 2.0):
-                        self.player.seekTime(self.resume_time)
+                    seek_target = self.resume_time
+                    if self._track_context:
+                        track = self._find_track_by_time(self.resume_time)
+                        if track:
+                            self._current_track = track
+                            seek_target = max(0.0, self.resume_time - float(track.get("start", 0.0) or 0.0))
+                    if float(self.player.getTime() or 0.0) < max(1.0, seek_target - 2.0):
+                        self.player.seekTime(seek_target)
                     self._resume_applied = True
                 except Exception as exc:
                     utils.log("Initial resume seek failed: %s" % exc, xbmc.LOGWARNING)
             now = time.time()
-            if now - last_sync >= self.interval:
+            if playing and now - last_sync >= self.interval:
                 self.sync_progress(False)
                 last_sync = now
             self.waitForAbort(0.5)
@@ -56,8 +116,7 @@ class AbsPlayerMonitor(xbmc.Monitor):
                 current_time = float(self._last_current_time or 0.0)
                 total_time = float(self._last_total_time or 0.0)
             else:
-                current_time = float(self.player.getTime() or 0.0)
-                total_time = float(self.player.getTotalTime() or 0.0)
+                current_time, total_time = self._combined_position()
                 self._last_current_time = max(self._last_current_time, current_time)
                 self._last_total_time = max(self._last_total_time, total_time)
             is_finished = False
