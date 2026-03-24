@@ -6,6 +6,12 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.43 - 2026-03-24
+
+- Bibliotheksfilterung behoben, damit Podcast-Einträge nicht mehr in Hörbuch-Ansichten oder gefilterten "Weiterhören"-Listen auftauchen.
+- Unnötige ABS-`/play`-Aufrufe bei direkter Einzeldatei-Wiedergabe vermieden, wodurch serverseitige Direct-Play-/MIME-Fehler bei manchen FLAC-Titeln ausbleiben.
+- Resume-Wiedergabe für mehrteilige Hörbücher robuster gemacht, indem fehlerhafte Track-Offsets normalisiert und der Wiedergabe-Monitor asynchron gestartet wird, um hängenbleibende Ladeanzeige und absturzanfällige Fortsetzungen zu vermeiden.
+
 ## 0.1.42 - 2026-03-20
 
 - Erkennung mehrteiliger Hörbücher für ABS-Antworten behoben, bei denen die echten Teil-Dateien unter `libraryItem.media.tracks` und `media.audioFiles` liegen, währen die oberste `/play`-Antwort nur einen einzelnen zusammengeführten HLS-Stream ausweist.

@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import threading
 
 import xbmc
 import xbmcgui
@@ -83,6 +84,40 @@ def library_kind(lib):
     if "podcast" in text:
         return "podcast"
     if "book" in text or "audio" in text:
+        return "audiobook"
+    return "unknown"
+
+
+def item_kind(item):
+    item = _as_item(item) or {}
+    media = item.get("media") or {}
+    metadata = media.get("metadata") or {}
+
+    for candidate in (
+        item.get("mediaType"),
+        item.get("libraryItemType"),
+        item.get("type"),
+        media.get("mediaType"),
+        media.get("type"),
+        metadata.get("mediaType"),
+        metadata.get("type"),
+        metadata.get("podcastType"),
+    ):
+        text = str(candidate or "").strip().lower()
+        if "podcast" in text:
+            return "podcast"
+        if "book" in text or "audio" in text:
+            return "audiobook"
+
+    if isinstance(media.get("episodes"), list) and media.get("episodes"):
+        return "podcast"
+    if metadata.get("podcastName") or metadata.get("podcast"):
+        return "podcast"
+    if isinstance(media.get("tracks"), list) and media.get("tracks"):
+        return "audiobook"
+    if isinstance(media.get("audioFiles"), list) and media.get("audioFiles"):
+        return "audiobook"
+    if metadata.get("authorName") or metadata.get("seriesName") or metadata.get("authors"):
         return "audiobook"
     return "unknown"
 
@@ -950,6 +985,10 @@ def _render_items(client, items, kind="audiobook"):
         item_id = item.get("id")
         if not item_id:
             continue
+        if kind in ("audiobook", "podcast"):
+            detected_kind = item_kind(item)
+            if detected_kind not in ("unknown", kind):
+                continue
         title = item_title(item)
         art = art_for_item(client, item_id)
         info = item_info_labels(item, fallback_title=title)
@@ -1002,6 +1041,12 @@ def list_continue(client, library_id=""):
 
     seen = set()
     utils.debug("Loading continue list (library_id=%s)" % (library_id or "all"))
+    allowed_kind = "unknown"
+    if library_id:
+        for lib in parse_libraries(client.libraries()):
+            if str(lib.get("id") or "") == str(library_id):
+                allowed_kind = library_kind(lib)
+                break
 
     def resolve_library_id(entry_obj, item_obj):
         lib = ""
@@ -1033,6 +1078,9 @@ def list_continue(client, library_id=""):
         ep_id = str(episode.get("id") or "")
         key = (item_id, ep_id)
         if key in seen:
+            return
+        detected_kind = item_kind(library_item)
+        if allowed_kind in ("audiobook", "podcast") and detected_kind not in ("unknown", allowed_kind):
             return
 
         current_time = float(media_progress.get("currentTime", 0) or 0)
@@ -1394,15 +1442,15 @@ def resolve_play_url(client, item_id, episode_id=None):
         if stream_url and (not is_hls_url(stream_url) or mime_type not in ("audio/flac", "audio/x-flac")):
             return stream_url, mime_type
 
-    play = client.play_item(item_id, episode_id=episode_id)
-    stream_url, mime_type = choose_source(play, prefer_direct=False, allow_track_files=not multi_track_audiobook)
-    if stream_url:
-        return stream_url, mime_type
-
     inode = find_first_key(item, ["ino", "inode"]) if not multi_track_audiobook else None
     if inode:
         stream_url = client.stream_url_with_token("/api/items/%s/file/%s" % (item_id, inode))
         return stream_url, next(iter_audio_mime_types(episode or item), "") or mime_type_from_url(stream_url)
+
+    play = client.play_item(item_id, episode_id=episode_id)
+    stream_url, mime_type = choose_source(play, prefer_direct=False, allow_track_files=not multi_track_audiobook)
+    if stream_url:
+        return stream_url, mime_type
     return "", ""
 
 
@@ -1458,8 +1506,20 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
         if not stream_url:
             continue
 
-        start = _as_float(_first_non_empty(track.get("startOffset"), track.get("start"), track.get("offset"), play_track.get("startOffset"), play_track.get("start"), play_track.get("offset")), cursor)
+        start = _as_float(
+            _first_non_empty(
+                track.get("startOffset"),
+                track.get("start"),
+                track.get("offset"),
+                play_track.get("startOffset"),
+                play_track.get("start"),
+                play_track.get("offset"),
+            ),
+            cursor,
+        )
         duration = _as_float(_first_non_empty(track.get("duration"), track.get("length"), play_track.get("duration"), play_track.get("length")), 0.0)
+        if idx > 0 and start <= max(0.0, cursor - 1.0):
+            start = cursor
         if duration <= 0 and idx + 1 < len(track_sources):
             next_track, next_play_track = track_sources[idx + 1]
             next_start = _as_float(
@@ -1473,6 +1533,8 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
                 ),
                 0.0,
             )
+            if next_start <= start:
+                next_start = cursor
             if next_start > start:
                 duration = max(0.0, next_start - start)
         if duration <= 0:
@@ -1560,6 +1622,12 @@ def start_multi_track_playback(client, item_id, playlist_tracks, resume, total_d
     )
 
 
+def start_monitor_async(monitor):
+    thread = threading.Thread(target=monitor.run, name="AbsPlayerMonitor", daemon=True)
+    thread.start()
+    return thread
+
+
 def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=""):
     item = {}
     try:
@@ -1579,13 +1647,19 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
 
     play_payload = {}
     if not episode_id:
+        media = (item.get("media") or {}) if isinstance(item, dict) else {}
+        raw_item_tracks = media.get("tracks") or media.get("audioFiles") or []
+        item_track_count = len(raw_item_tracks) if isinstance(raw_item_tracks, list) else 0
+    else:
+        media = {}
+        raw_item_tracks = []
+        item_track_count = 0
+
+    if not episode_id and item_track_count != 1:
         try:
             play_payload = client.play_item(item_id, episode_id=None) or {}
         except Exception:
             play_payload = {}
-    media = (item.get("media") or {}) if isinstance(item, dict) else {}
-    raw_item_tracks = media.get("tracks") or media.get("audioFiles") or []
-    item_track_count = len(raw_item_tracks) if isinstance(raw_item_tracks, list) else 0
     play_track_count = len(_track_list_from_play_data(play_payload))
     multi_track_audiobook = not episode_id and max(item_track_count, play_track_count) > 1
     utils.debug(
@@ -1609,7 +1683,7 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         playlist_tracks, playlist_duration = build_multi_track_playlist(client, item, play_payload, info, art)
         if playlist_tracks:
             monitor = start_multi_track_playback(client, item_id, playlist_tracks, resume, playlist_duration)
-            monitor.run()
+            start_monitor_async(monitor)
             return
 
     stream_url, mime_type = resolve_play_url(client, item_id, episode_id=episode_id or None)
@@ -1640,7 +1714,7 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
     xbmcplugin.setResolvedUrl(utils.HANDLE, True, li)
 
     monitor = AbsPlayerMonitor(client, item_id=item_id, episode_id=(episode_id or None), resume_time=resume)
-    monitor.run()
+    start_monitor_async(monitor)
 
 
 def sync_strm(client):

@@ -131,8 +131,9 @@ def update_addons_xml(repo_root: Path) -> None:
             cwd=repo_root,
             check=True,
             capture_output=True,
-            text=True,
         ).stdout
+        if isinstance(git_xml, bytes):
+            git_xml = git_xml.decode("utf-8", errors="replace")
         current_root = ElementTree.fromstring(git_xml)
     except (subprocess.CalledProcessError, FileNotFoundError, ElementTree.ParseError):
         existing_addons_xml = repo_root / "repo" / "addons.xml"

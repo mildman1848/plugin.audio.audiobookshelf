@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.43 - 2026-03-24
+
+- Fixed library filtering so podcast entries no longer leak into audiobook views or filtered continue lists.
+- Avoided unnecessary ABS `/play` requests for direct single-file playback, which prevents server-side direct-play MIME errors for some FLAC titles.
+- Hardened resumed playback for multi-part audiobooks by normalizing broken track offsets and running the playback monitor asynchronously to avoid stuck loading UI and resume-related playback crashes.
+
 ## 0.1.42 - 2026-03-20
 
 - Fixed multi-part audiobook detection for ABS responses that expose the real part files under `libraryItem.media.tracks` and `media.audioFiles` while the top-level `/play` payload only advertises a single merged HLS stream.
