@@ -139,7 +139,7 @@ class AbsPlayerMonitor(xbmc.Monitor):
                     continue
             elif (time.time() - last_playing) > 3.0:
                 break
-            if not self._resume_applied and self.resume_time > 0:
+            if playing and not self._resume_applied and self.resume_time > 0:
                 try:
                     seek_target = self.resume_time
                     if self._track_context:

@@ -5,6 +5,8 @@ from urllib.parse import parse_qsl, urljoin, urlparse
 
 import requests
 import xbmcaddon
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 from resources.lib import utils
 
 
@@ -22,6 +24,19 @@ class AbsClient:
         self.auth_mode = self._parse_auth_mode(self.addon.getSetting("auth_mode"))
         self.session = requests.Session()
         self.session.headers.update({"Content-Type": "application/json"})
+        retry = Retry(
+            total=3,
+            connect=3,
+            read=2,
+            status=2,
+            backoff_factor=0.5,
+            status_forcelist=(429, 500, 502, 503, 504),
+            allowed_methods=frozenset(["GET", "POST", "PATCH"]),
+            raise_on_status=False,
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        self.session.mount("https://", adapter)
+        self.session.mount("http://", adapter)
 
     @staticmethod
     def _parse_auth_mode(raw):
@@ -95,21 +110,30 @@ class AbsClient:
 
     def get(self, path, params=None):
         utils.debug("HTTP GET %s params=%s" % (path, params or {}))
-        r = self.session.get(self._full(path), headers=self.auth_headers(), params=params or {}, timeout=30)
+        try:
+            r = self.session.get(self._full(path), headers=self.auth_headers(), params=params or {}, timeout=30)
+        except requests.RequestException as exc:
+            raise AbsApiError("GET %s failed: %s" % (path, exc))
         if r.status_code >= 400:
             raise AbsApiError("GET %s failed: HTTP %s" % (path, r.status_code))
         return r.json()
 
     def post(self, path, payload=None):
         utils.debug("HTTP POST %s" % path)
-        r = self.session.post(self._full(path), headers=self.auth_headers(), data=json.dumps(payload or {}), timeout=30)
+        try:
+            r = self.session.post(self._full(path), headers=self.auth_headers(), data=json.dumps(payload or {}), timeout=30)
+        except requests.RequestException as exc:
+            raise AbsApiError("POST %s failed: %s" % (path, exc))
         if r.status_code >= 400:
             raise AbsApiError("POST %s failed: HTTP %s" % (path, r.status_code))
         return r.json()
 
     def patch(self, path, payload=None):
         utils.debug("HTTP PATCH %s" % path)
-        r = self.session.patch(self._full(path), headers=self.auth_headers(), data=json.dumps(payload or {}), timeout=30)
+        try:
+            r = self.session.patch(self._full(path), headers=self.auth_headers(), data=json.dumps(payload or {}), timeout=30)
+        except requests.RequestException as exc:
+            raise AbsApiError("PATCH %s failed: %s" % (path, exc))
         if r.status_code >= 400:
             raise AbsApiError("PATCH %s failed: HTTP %s" % (path, r.status_code))
         body = (r.text or "").strip()

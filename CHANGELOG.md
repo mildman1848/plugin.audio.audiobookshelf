@@ -6,6 +6,13 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.44 - 2026-03-28
+
+- Fixed `Podcasts -> Continue Listening` and `Audiobooks -> Continue Listening` so both routes now preserve their library and media kind filters instead of falling back to the global mixed continue list.
+- Added HTTP retry handling for ABS API requests to better survive transient DNS or connectivity failures inside Kodi/Flatpak environments.
+- Fixed multi-part audiobook startup so the initial resume seek only runs after Kodi is actually playing audio, avoiding repeated `Kodi is not playing any media file` warnings at playback start.
+- Wrapped Audiobookshelf request/network failures in `AbsApiError` so temporary DNS or connectivity issues surface as controlled addon errors instead of raw unhandled exceptions in the Kodi log.
+
 ## 0.1.43 - 2026-03-24
 
 - Fixed library filtering so podcast entries no longer leak into audiobook views or filtered continue lists.

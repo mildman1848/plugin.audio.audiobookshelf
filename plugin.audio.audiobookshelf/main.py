@@ -88,7 +88,9 @@ def library_kind(lib):
     return "unknown"
 
 
-def item_kind(item):
+def item_kind(item, episode=None):
+    if episode:
+        return "podcast"
     item = _as_item(item) or {}
     media = item.get("media") or {}
     metadata = media.get("metadata") or {}
@@ -137,6 +139,30 @@ def item_metadata(item):
     item = item.get("libraryItem") if isinstance(item, dict) and isinstance(item.get("libraryItem"), dict) else item
     media = item.get("media") or {}
     return media.get("metadata") or {}
+
+
+def item_kind(item, episode=None):
+    if episode:
+        return "podcast"
+    item = _as_item(item) or {}
+    media = item.get("media") or {}
+    metadata = media.get("metadata") or {}
+    text = " ".join(
+        str(value or "")
+        for value in (
+            item.get("mediaType"),
+            item.get("libraryMediaType"),
+            media.get("mediaType"),
+            item.get("type"),
+            metadata.get("podcastName"),
+            metadata.get("seriesName"),
+        )
+    ).lower()
+    if "podcast" in text:
+        return "podcast"
+    if "book" in text or "audiobook" in text:
+        return "audiobook"
+    return "unknown"
 
 
 def item_info_labels(item, fallback_title=""):
@@ -711,7 +737,7 @@ def _personalized_sections(client, library_id):
 
 def list_audiobooks_root(client, library_id):
     utils.add_dir(t("home_start", "Home"), "personalized_sections", folder=True, library_id=library_id, kind="audiobook")
-    utils.add_dir(t("continue", "Continue Listening"), "continue", folder=True, library_id=library_id)
+    utils.add_dir(t("continue", "Continue Listening"), "continue", folder=True, library_id=library_id, kind="audiobook")
     utils.add_dir(t("menu_library", "Library"), "library", folder=True, library_id=library_id, kind="audiobook")
     utils.add_dir(t("menu_series", "Series"), "entities", folder=True, library_id=library_id, entity_type="series")
     utils.add_dir(t("menu_authors", "Authors"), "entities", folder=True, library_id=library_id, entity_type="authors")
@@ -724,7 +750,7 @@ def list_audiobooks_root(client, library_id):
 
 def list_podcasts_root(client, library_id):
     utils.add_dir(t("all_podcasts", "All Podcasts"), "library", folder=True, library_id=library_id, kind="podcast")
-    utils.add_dir(t("continue", "Continue Listening"), "continue", folder=True, library_id=library_id)
+    utils.add_dir(t("continue", "Continue Listening"), "continue", folder=True, library_id=library_id, kind="podcast")
     utils.add_dir(t("newly_added", "Recently Added"), "library_sorted", folder=True, library_id=library_id, kind="podcast", sort_key="addedAt", desc="1")
     utils.add_dir(t("alpha_sort", "A-Z"), "library_sorted", folder=True, library_id=library_id, kind="podcast", sort_key="media.metadata.title", desc="0")
     utils.add_dir(t("search_local", "Search"), "search_library_prompt", folder=False, library_id=library_id, kind="podcast")
@@ -1034,13 +1060,13 @@ def list_episodes(client, item_id, title="Podcast", art=""):
     utils.end("songs")
 
 
-def list_continue(client, library_id=""):
+def list_continue(client, library_id="", kind=""):
     threshold = utils.as_seconds(utils.ADDON.getSetting("mark_finished_threshold") or 97)
     if threshold <= 0 or threshold > 100:
         threshold = 97
 
     seen = set()
-    utils.debug("Loading continue list (library_id=%s)" % (library_id or "all"))
+    utils.debug("Loading continue list (library_id=%s kind=%s)" % (library_id or "all", kind or "all"))
     allowed_kind = "unknown"
     if library_id:
         for lib in parse_libraries(client.libraries()):
@@ -1089,6 +1115,10 @@ def list_continue(client, library_id=""):
             percent = (current_time / duration) * 100.0
             if percent >= threshold:
                 return
+
+        resolved_kind = item_kind(library_item, episode=episode)
+        if kind and resolved_kind != kind:
+            return
 
         title = item_title(library_item)
         if ep_id:
@@ -2049,11 +2079,11 @@ def run():
             return
 
         if action == "continue":
-            list_continue(require_client())
+            list_continue(require_client(), library_id=p.get("library_id", ""), kind=p.get("kind", ""))
             return
 
         if action == "audiobook_continue":
-            list_continue(require_client(), library_id=p.get("library_id", ""))
+            list_continue(require_client(), library_id=p.get("library_id", ""), kind="audiobook")
             return
 
         if action == "audiobook_recent":

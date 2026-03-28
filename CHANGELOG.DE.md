@@ -6,6 +6,13 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.44 - 2026-03-28
+
+- `Podcasts -> Weiterhören` und `Hörbücher -> Weiterhören` korrigiert: Beide Routen behalten jetzt ihren Bibliotheks- und Medientyp-Filter, statt auf die globale gemischte Continue-Liste zurückzufallen.
+- HTTP-Retries für ABS-API-Aufrufe ergänzt, damit das Addon temporäre DNS- oder Verbindungsfehler in Kodi-/Flatpak-Umgebungen besser übersteht.
+- Den Start von Mehrdateien-Hörbüchern korrigiert: Der initiale Resume-Seek läuft jetzt erst, wenn Kodi tatsächlich Audio wiedergibt, wodurch die wiederholten Warnungen `Kodi is not playing any media file` beim Start entfallen.
+- Audiobookshelf-Netzwerk- und DNS-Fehler in `AbsApiError` gekapselt, damit temporäre Verbindungsprobleme als kontrollierte Addon-Fehler statt als rohe unhandled exceptions im Kodi-Log erscheinen.
+
 ## 0.1.43 - 2026-03-24
 
 - Bibliotheksfilterung behoben, damit Podcast-Einträge nicht mehr in Hörbuch-Ansichten oder gefilterten "Weiterhören"-Listen auftauchen.
