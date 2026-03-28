@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.45 - 2026-03-28
+
+- Fixed single-file audiobook playback for `.m4b` titles by preferring the ABS `/play` stream metadata and the actual single track inode instead of the non-playable library-item root inode that returned `404` in Kodi.
+- Reworked multi-track audiobook startup so Kodi now receives a proper resolved playback item for the selected track instead of a direct playlist handoff from the plugin route, which removes the repeated `GetDirectory` playback errors and the stuck loading spinner at playback start.
+- Moved playback progress monitoring into a background addon service so Kodi no longer waits on a plugin-spawned monitor thread, preventing duplicate monitor instances and cleaner multi-track progress sync.
+
 ## 0.1.44 - 2026-03-28
 
 - Fixed `Podcasts -> Continue Listening` and `Audiobooks -> Continue Listening` so both routes now preserve their library and media kind filters instead of falling back to the global mixed continue list.

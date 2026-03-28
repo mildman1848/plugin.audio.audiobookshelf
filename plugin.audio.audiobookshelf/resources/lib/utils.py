@@ -12,8 +12,13 @@ import xbmcvfs
 
 ADDON = xbmcaddon.Addon()
 ADDON_ID = ADDON.getAddonInfo("id")
-HANDLE = int(sys.argv[1])
-BASE = sys.argv[0]
+try:
+    HANDLE = int(sys.argv[1]) if len(sys.argv) > 1 else -1
+except Exception:
+    HANDLE = -1
+BASE = sys.argv[0] if sys.argv else ""
+WINDOW = xbmcgui.Window(10000)
+MONITOR_REQUEST_PROP = "%s.monitor.request" % ADDON_ID
 
 _EN_OVERRIDES = {
     30000: "Audiobooks",
@@ -189,6 +194,28 @@ def params():
 
 def plugin_url(**kwargs):
     return BASE + "?" + urlencode(kwargs)
+
+
+def window_property(name, default=""):
+    try:
+        value = WINDOW.getProperty(name)
+    except Exception:
+        value = ""
+    return value if value != "" else default
+
+
+def set_window_property(name, value):
+    try:
+        WINDOW.setProperty(name, value or "")
+    except Exception:
+        pass
+
+
+def clear_window_property(name):
+    try:
+        WINDOW.clearProperty(name)
+    except Exception:
+        pass
 
 
 def add_dir(label, action, folder=True, art=None, info=None, **kwargs):

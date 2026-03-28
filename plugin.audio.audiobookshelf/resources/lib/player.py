@@ -2,6 +2,7 @@
 import time
 
 import xbmc
+import xbmcgui
 
 from resources.lib import utils
 
@@ -59,10 +60,25 @@ class AbsPlayerMonitor(xbmc.Monitor):
         if not track:
             return False
         try:
-            listitem = track.get("listitem")
             path = track.get("path") or ""
             if not path:
                 return False
+            listitem = xbmcgui.ListItem(label=track.get("title") or "", path=path)
+            listitem.setProperty("IsPlayable", "true")
+            try:
+                listitem.setArt(track.get("art") or {})
+            except Exception:
+                pass
+            info = track.get("info") or {}
+            if info:
+                listitem.setInfo("music", info)
+            mime_type = track.get("mime_type") or ""
+            if mime_type:
+                try:
+                    listitem.setMimeType(mime_type)
+                    listitem.setContentLookup(False)
+                except Exception:
+                    pass
             self.player.play(item=path, listitem=listitem)
             self._current_track = track
             utils.debug("Continuing multi-track audiobook with next part: %s" % path)

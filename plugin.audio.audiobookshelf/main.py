@@ -3,7 +3,6 @@ import json
 import os
 import random
 import re
-import threading
 
 import xbmc
 import xbmcgui
@@ -20,7 +19,6 @@ from resources.lib.api import (
     parse_items,
     parse_libraries,
 )
-from resources.lib.player import AbsPlayerMonitor
 from resources.lib import utils
 
 
@@ -1397,12 +1395,22 @@ def resolve_play_url(client, item_id, episode_id=None):
     item = client.item(item_id)
     episode = None
     media = item.get("media") or {}
+    play = {}
     if episode_id:
         episodes = (media.get("episodes") or [])
         for ep in episodes:
             if str(ep.get("id") or "") == str(episode_id):
                 episode = ep
                 break
+        try:
+            play = client.play_item(item_id, episode_id=episode_id) or {}
+        except Exception:
+            play = {}
+    else:
+        try:
+            play = client.play_item(item_id, episode_id=None) or {}
+        except Exception:
+            play = {}
 
     def is_hls_url(url):
         value = (url or "").lower()
@@ -1459,9 +1467,20 @@ def resolve_play_url(client, item_id, episode_id=None):
         url, mime_type = candidates[0]
         return client.stream_url_with_token(url), mime_type
 
-    multi_track_audiobook = not episode_id and len(media.get("tracks") or []) > 1
+    play_item = (play.get("libraryItem") or {}) if isinstance(play.get("libraryItem"), dict) else {}
+    play_media = (play_item.get("media") or {}) if isinstance(play_item, dict) else {}
+    multi_track_audiobook = not episode_id and max(
+        len(media.get("tracks") or []),
+        len(media.get("audioFiles") or []),
+        len(play_media.get("tracks") or []),
+        len(play_media.get("audioFiles") or []),
+    ) > 1
 
-    for payload in (episode, item):
+    payloads = [episode, item]
+    if not multi_track_audiobook:
+        payloads = [play, play_item, episode, item]
+
+    for payload in payloads:
         if not isinstance(payload, dict):
             continue
         stream_url, mime_type = choose_source(
@@ -1472,12 +1491,27 @@ def resolve_play_url(client, item_id, episode_id=None):
         if stream_url and (not is_hls_url(stream_url) or mime_type not in ("audio/flac", "audio/x-flac")):
             return stream_url, mime_type
 
-    inode = find_first_key(item, ["ino", "inode"]) if not multi_track_audiobook else None
+    inode = ""
+    if not multi_track_audiobook:
+        single_track_sources = []
+        for payload in (play_item, item):
+            if not isinstance(payload, dict):
+                continue
+            payload_media = payload.get("media") or {}
+            for key in ("tracks", "audioFiles"):
+                values = payload_media.get(key) or []
+                if isinstance(values, list) and len(values) == 1 and isinstance(values[0], dict):
+                    single_track_sources.append(values[0])
+        for source in single_track_sources:
+            inode = _first_non_empty(source.get("ino"), source.get("inode"))
+            if inode:
+                break
+        if not inode:
+            inode = find_first_key(item, ["ino", "inode"])
     if inode:
         stream_url = client.stream_url_with_token("/api/items/%s/file/%s" % (item_id, inode))
         return stream_url, next(iter_audio_mime_types(episode or item), "") or mime_type_from_url(stream_url)
 
-    play = client.play_item(item_id, episode_id=episode_id)
     stream_url, mime_type = choose_source(play, prefer_direct=False, allow_track_files=not multi_track_audiobook)
     if stream_url:
         return stream_url, mime_type
@@ -1591,27 +1625,15 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
         if duration > 0:
             info["duration"] = int(duration)
 
-        li = xbmcgui.ListItem(label=track_title, path=stream_url)
-        li.setProperty("IsPlayable", "true")
-        try:
-            li.setArt(fallback_art or {})
-        except Exception:
-            pass
-        if info:
-            li.setInfo("music", info)
-        if mime_type:
-            try:
-                li.setMimeType(mime_type)
-                li.setContentLookup(False)
-            except Exception:
-                pass
-
         playlist_tracks.append(
             {
-                "listitem": li,
                 "path": stream_url,
                 "start": max(0.0, start),
                 "duration": max(0.0, duration),
+                "title": track_title,
+                "info": info,
+                "art": fallback_art or {},
+                "mime_type": mime_type,
             }
         )
         cursor = max(cursor, start + duration)
@@ -1624,12 +1646,7 @@ def build_multi_track_playlist(client, item, play_data, fallback_info, fallback_
     return playlist_tracks, total_duration
 
 
-def start_multi_track_playback(client, item_id, playlist_tracks, resume, total_duration):
-    playlist = xbmc.PlayList(xbmc.PLAYLIST_MUSIC)
-    playlist.clear()
-    for track in playlist_tracks:
-        playlist.add(track["path"], track["listitem"])
-
+def select_multi_track_start(playlist_tracks, resume):
     start_index = 0
     seek_time = max(0.0, _as_float(resume, 0.0))
     for idx, track in enumerate(playlist_tracks):
@@ -1640,22 +1657,38 @@ def start_multi_track_playback(client, item_id, playlist_tracks, resume, total_d
         if duration > 0 and start <= seek_time < (start + duration):
             start_index = idx
             break
+    return playlist_tracks[start_index]
 
-    xbmc.Player().play(playlist, startpos=start_index)
-    return AbsPlayerMonitor(
-        client,
-        item_id=item_id,
-        episode_id=None,
-        resume_time=resume,
-        track_context=playlist_tracks,
-        total_duration=total_duration,
-    )
+def build_track_listitem(track):
+    li = xbmcgui.ListItem(label=track.get("title") or "", path=track.get("path") or "")
+    li.setProperty("IsPlayable", "true")
+    try:
+        li.setArt(track.get("art") or {})
+    except Exception:
+        pass
+    info = track.get("info") or {}
+    if info:
+        li.setInfo("music", info)
+    mime_type = track.get("mime_type") or ""
+    if mime_type:
+        try:
+            li.setMimeType(mime_type)
+            li.setContentLookup(False)
+        except Exception:
+            pass
+    return li
 
 
-def start_monitor_async(monitor):
-    thread = threading.Thread(target=monitor.run, name="AbsPlayerMonitor", daemon=True)
-    thread.start()
-    return thread
+def queue_playback_monitor(item_id, episode_id=None, resume_time=0.0, track_context=None, total_duration=0.0):
+    payload = {
+        "request_id": "%s-%s" % (item_id, random.randint(100000, 999999)),
+        "item_id": item_id,
+        "episode_id": episode_id or "",
+        "resume_time": float(max(0.0, resume_time or 0.0)),
+        "track_context": track_context or [],
+        "total_duration": float(max(0.0, total_duration or 0.0)),
+    }
+    utils.set_window_property(utils.MONITOR_REQUEST_PROP, json.dumps(payload, separators=(",", ":")))
 
 
 def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=""):
@@ -1712,8 +1745,16 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
     if multi_track_audiobook:
         playlist_tracks, playlist_duration = build_multi_track_playlist(client, item, play_payload, info, art)
         if playlist_tracks:
-            monitor = start_multi_track_playback(client, item_id, playlist_tracks, resume, playlist_duration)
-            start_monitor_async(monitor)
+            start_track = select_multi_track_start(playlist_tracks, resume)
+            li = build_track_listitem(start_track)
+            queue_playback_monitor(
+                item_id=item_id,
+                episode_id=None,
+                resume_time=resume,
+                track_context=playlist_tracks,
+                total_duration=playlist_duration,
+            )
+            xbmcplugin.setResolvedUrl(utils.HANDLE, True, li)
             return
 
     stream_url, mime_type = resolve_play_url(client, item_id, episode_id=episode_id or None)
@@ -1734,17 +1775,16 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
             li.setContentLookup(False)
         except Exception:
             pass
-    if resume > 0:
-        li.setProperty("ResumeTime", str(resume))
-        if duration > 0:
-            li.setProperty("TotalTime", str(duration))
     if info:
         li.setInfo("music", info)
 
+    queue_playback_monitor(
+        item_id=item_id,
+        episode_id=(episode_id or None),
+        resume_time=resume,
+        total_duration=duration,
+    )
     xbmcplugin.setResolvedUrl(utils.HANDLE, True, li)
-
-    monitor = AbsPlayerMonitor(client, item_id=item_id, episode_id=(episode_id or None), resume_time=resume)
-    start_monitor_async(monitor)
 
 
 def sync_strm(client):

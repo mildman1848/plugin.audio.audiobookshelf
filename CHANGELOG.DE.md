@@ -6,6 +6,12 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.45 - 2026-03-28
+
+- Einzeldatei-Hörbücher im `.m4b`-Format korrigiert: Das Addon bevorzugt jetzt die ABS-`/play`-Streamdaten und die echte Single-Track-`ino` statt der nicht abspielbaren Library-Root-`ino`, die in Kodi zu `404` führte.
+- Start mehrteiliger Hörbücher überarbeitet: Kodi bekommt jetzt ein korrekt aufgelöstes Abspiel-Item für den gewählten Track statt einer direkten Playlist-Übergabe aus der Plugin-Route, wodurch die wiederholten `GetDirectory`-Fehler und die hängenbleibende Ladeanimation beim Start entfallen.
+- Die Fortschrittsüberwachung in einen Hintergrund-Service verschoben, damit Kodi nicht mehr auf einen aus der Plugin-Route gestarteten Monitor-Thread wartet und doppelte Monitor-Instanzen mit fehlerhafter Mehrtrack-Synchronisierung ausbleiben.
+
 ## 0.1.44 - 2026-03-28
 
 - `Podcasts -> Weiterhören` und `Hörbücher -> Weiterhören` korrigiert: Beide Routen behalten jetzt ihren Bibliotheks- und Medientyp-Filter, statt auf die globale gemischte Continue-Liste zurückzufallen.
