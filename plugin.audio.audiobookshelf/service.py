@@ -16,12 +16,20 @@ class PlaybackMonitorService(xbmc.Monitor):
     def run(self):
         utils.debug("Playback monitor service started")
         while not self.abortRequested():
-            payload = utils.window_property(utils.MONITOR_REQUEST_PROP, "")
-            if payload and payload != self._last_request:
-                self._last_request = payload
+            payload = self._claim_request()
+            if payload:
                 self._run_monitor(payload)
             self.waitForAbort(0.5)
         utils.debug("Playback monitor service stopped")
+
+    def _claim_request(self):
+        payload = utils.window_property(utils.MONITOR_REQUEST_PROP, "")
+        if not payload or payload == self._last_request:
+            return ""
+        self._last_request = payload
+        if utils.window_property(utils.MONITOR_REQUEST_PROP, "") == payload:
+            utils.clear_window_property(utils.MONITOR_REQUEST_PROP)
+        return payload
 
     def _run_monitor(self, payload):
         try:
