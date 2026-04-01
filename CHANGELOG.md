@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.47 - 2026-04-01
+
+- Fixed resume reliability for audiobook playback by preserving progress offsets from personalized/continue list payloads and forwarding them into play routes.
+- Hardened playback progress parsing so fallback resume lookup now supports multiple Audiobookshelf response shapes (including nested progress objects and millisecond-based fields).
+
 ## 0.1.45 - 2026-03-28
 
 - Fixed single-file audiobook playback for `.m4b` titles by preferring the ABS `/play` stream metadata and the actual single track inode instead of the non-playable library-item root inode that returned `404` in Kodi.

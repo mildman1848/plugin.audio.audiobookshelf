@@ -395,6 +395,65 @@ def _as_float(value, default=0.0):
         return default
 
 
+def _extract_progress(payload):
+    if not isinstance(payload, dict):
+        return 0.0, 0.0
+
+    candidates = [payload]
+    for key in ("mediaProgress", "userMediaProgress", "progress"):
+        nested = payload.get(key)
+        if isinstance(nested, dict):
+            candidates.append(nested)
+
+    for data in candidates:
+        current = _as_float(
+            _first_non_empty(
+                data.get("currentTime"),
+                data.get("current"),
+                data.get("position"),
+                data.get("time"),
+            ),
+            -1.0,
+        )
+        duration = _as_float(
+            _first_non_empty(
+                data.get("duration"),
+                data.get("totalDuration"),
+                data.get("totalTime"),
+            ),
+            -1.0,
+        )
+
+        if current < 0:
+            current_ms = _as_float(
+                _first_non_empty(
+                    data.get("currentTimeMs"),
+                    data.get("positionMs"),
+                    data.get("currentMs"),
+                ),
+                -1.0,
+            )
+            if current_ms >= 0:
+                current = current_ms / 1000.0
+
+        if duration < 0:
+            duration_ms = _as_float(
+                _first_non_empty(
+                    data.get("durationMs"),
+                    data.get("totalDurationMs"),
+                    data.get("totalTimeMs"),
+                ),
+                -1.0,
+            )
+            if duration_ms >= 0:
+                duration = duration_ms / 1000.0
+
+        if current >= 0 or duration >= 0:
+            return max(0.0, current), max(0.0, duration)
+
+    return 0.0, 0.0
+
+
 def extract_chapters(item):
     item = _as_item(item) or {}
     media = item.get("media") or {}
@@ -1004,8 +1063,8 @@ def build_local_entities(items, entity_type):
 
 
 def _render_items(client, items, kind="audiobook"):
-    for item in items:
-        item = item.get("libraryItem") if isinstance(item, dict) and isinstance(item.get("libraryItem"), dict) else item
+    for row in items:
+        item = row.get("libraryItem") if isinstance(row, dict) and isinstance(row.get("libraryItem"), dict) else row
         item_id = item.get("id")
         if not item_id:
             continue
@@ -1020,7 +1079,21 @@ def _render_items(client, items, kind="audiobook"):
         if kind == "podcast":
             utils.add_dir(title, "episodes", folder=True, item_id=item_id, title=title, art=art, info=info)
         else:
-            utils.add_playable(title, "play", item_id=item_id, title=title, art=art, info=info)
+            current_time, media_duration = _extract_progress(row if isinstance(row, dict) else {})
+            if media_duration <= 0:
+                media_duration = _as_float((item.get("media") or {}).get("duration"), 0.0)
+
+            play_kwargs = {
+                "item_id": item_id,
+                "title": title,
+                "art": art,
+                "info": info,
+            }
+            if current_time > 0:
+                play_kwargs["resume"] = current_time
+            if media_duration > 0:
+                play_kwargs["duration"] = media_duration
+            utils.add_playable(title, "play", **play_kwargs)
     utils.end("songs")
 
 
@@ -1701,10 +1774,9 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
     if resume <= 0:
         try:
             p = client.progress(item_id, episode_id=episode_id or None) or {}
-            source = p.get("mediaProgress") if isinstance(p, dict) and p.get("mediaProgress") else p
-            resume = float((source or {}).get("currentTime", 0) or 0)
-            if not duration:
-                duration = float((source or {}).get("duration", 0) or 0)
+            resume, fetched_duration = _extract_progress(p if isinstance(p, dict) else {})
+            if not duration and fetched_duration > 0:
+                duration = fetched_duration
         except Exception:
             resume = 0.0
 

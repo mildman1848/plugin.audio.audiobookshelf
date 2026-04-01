@@ -6,6 +6,11 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.47 - 2026-04-01
+
+- Resume-Zuverlässigkeit bei der Hörbuchwiedergabe behoben, indem Fortschrittspositionen aus personalisierten/Weiterhören-Listen erhalten und an die Play-Route weitergereicht werden.
+- Fortschrittsauswertung robuster gemacht: Der Fallback für Resume-Positionen unterstützt jetzt mehrere Audiobookshelf-Antwortformate (inklusive verschachtelter Progress-Objekte und Millisekunden-Felder).
+
 ## 0.1.45 - 2026-03-28
 
 - Einzeldatei-Hörbücher im `.m4b`-Format korrigiert: Das Addon bevorzugt jetzt die ABS-`/play`-Streamdaten und die echte Single-Track-`ino` statt der nicht abspielbaren Library-Root-`ino`, die in Kodi zu `404` führte.
