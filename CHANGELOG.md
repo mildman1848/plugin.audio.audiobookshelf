@@ -6,6 +6,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.48 - 2026-04-01
+
+- Added duplicate-play guard logic to suppress immediate repeated `action=play` calls for the same item, preventing unintended restart-at-zero behavior.
+- Added detailed playback debug logs for resume extraction and play decision flow (`incoming`, API fallback, selected start track, and final resume/duration values).
+
 ## 0.1.47 - 2026-04-01
 
 - Fixed resume reliability for audiobook playback by preserving progress offsets from personalized/continue list payloads and forwarding them into play routes.

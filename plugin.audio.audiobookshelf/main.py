@@ -3,6 +3,7 @@ import json
 import os
 import random
 import re
+import time
 
 import xbmc
 import xbmcgui
@@ -20,6 +21,9 @@ from resources.lib.api import (
     parse_libraries,
 )
 from resources.lib import utils
+
+PLAY_GUARD_PROP = "%s.play.guard" % utils.ADDON_ID
+PLAY_GUARD_WINDOW_SECONDS = 3.0
 
 
 # Localization IDs (see resources/language/*/strings.po)
@@ -395,8 +399,10 @@ def _as_float(value, default=0.0):
         return default
 
 
-def _extract_progress(payload):
+def _extract_progress(payload, debug_label=""):
     if not isinstance(payload, dict):
+        if debug_label:
+            utils.debug("Progress extract [%s]: payload is not a dict" % debug_label)
         return 0.0, 0.0
 
     candidates = [payload]
@@ -449,9 +455,43 @@ def _extract_progress(payload):
                 duration = duration_ms / 1000.0
 
         if current >= 0 or duration >= 0:
-            return max(0.0, current), max(0.0, duration)
+            parsed_current = max(0.0, current)
+            parsed_duration = max(0.0, duration)
+            if debug_label:
+                keys = ",".join(sorted([str(k) for k in data.keys()])) if isinstance(data, dict) else ""
+                utils.debug(
+                    "Progress extract [%s]: current=%.2f duration=%.2f keys=%s"
+                    % (debug_label, parsed_current, parsed_duration, keys)
+                )
+            return parsed_current, parsed_duration
 
+    if debug_label:
+        keys = ",".join(sorted([str(k) for k in payload.keys()])) if isinstance(payload, dict) else ""
+        utils.debug("Progress extract [%s]: no usable progress fields keys=%s" % (debug_label, keys))
     return 0.0, 0.0
+
+
+def _should_skip_duplicate_play(item_id, episode_id=None):
+    key = "%s:%s" % ((item_id or "").strip(), (episode_id or "").strip())
+    if not key.strip(":"):
+        return False
+
+    now = time.time()
+    try:
+        previous = json.loads(utils.window_property(PLAY_GUARD_PROP, "") or "{}")
+    except Exception:
+        previous = {}
+
+    previous_key = str(previous.get("key") or "")
+    previous_ts = _as_float(previous.get("ts"), 0.0)
+    delta = max(0.0, now - previous_ts)
+
+    utils.set_window_property(PLAY_GUARD_PROP, json.dumps({"key": key, "ts": now}, separators=(",", ":")))
+
+    if previous_key == key and previous_ts > 0 and delta <= PLAY_GUARD_WINDOW_SECONDS:
+        utils.debug("Duplicate play suppressed key=%s delta=%.2fs" % (key, delta))
+        return True
+    return False
 
 
 def extract_chapters(item):
@@ -1079,7 +1119,10 @@ def _render_items(client, items, kind="audiobook"):
         if kind == "podcast":
             utils.add_dir(title, "episodes", folder=True, item_id=item_id, title=title, art=art, info=info)
         else:
-            current_time, media_duration = _extract_progress(row if isinstance(row, dict) else {})
+            current_time, media_duration = _extract_progress(
+                row if isinstance(row, dict) else {},
+                debug_label="render:%s" % item_id,
+            )
             if media_duration <= 0:
                 media_duration = _as_float((item.get("media") or {}).get("duration"), 0.0)
 
@@ -1765,6 +1808,10 @@ def queue_playback_monitor(item_id, episode_id=None, resume_time=0.0, track_cont
 
 
 def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=""):
+    utils.debug(
+        "Play request start item_id=%s episode_id=%s incoming_resume=%.2f incoming_duration=%.2f"
+        % (item_id, episode_id or "", _as_float(resume, 0.0), _as_float(duration, 0.0))
+    )
     item = {}
     try:
         item = client.item(item_id) or {}
@@ -1774,11 +1821,19 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
     if resume <= 0:
         try:
             p = client.progress(item_id, episode_id=episode_id or None) or {}
-            resume, fetched_duration = _extract_progress(p if isinstance(p, dict) else {})
+            resume, fetched_duration = _extract_progress(
+                p if isinstance(p, dict) else {},
+                debug_label="api-fallback:%s" % item_id,
+            )
             if not duration and fetched_duration > 0:
                 duration = fetched_duration
+            utils.debug(
+                "Play request fallback item_id=%s fetched_resume=%.2f fetched_duration=%.2f"
+                % (item_id, _as_float(resume, 0.0), _as_float(fetched_duration, 0.0))
+            )
         except Exception:
             resume = 0.0
+            utils.debug("Play request fallback item_id=%s failed; resume reset to 0" % item_id)
 
     play_payload = {}
     if not episode_id:
@@ -1801,6 +1856,10 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         "Playback track detection item_id=%s item_tracks=%d play_tracks=%d multi_track=%s"
         % (item_id, item_track_count, play_track_count, multi_track_audiobook)
     )
+    utils.debug(
+        "Play request decision item_id=%s final_resume=%.2f final_duration=%.2f"
+        % (item_id, _as_float(resume, 0.0), _as_float(duration, 0.0))
+    )
 
     info = item_info_labels(item, fallback_title=title)
     if title and not info.get("title"):
@@ -1818,6 +1877,15 @@ def play_item(client, item_id, episode_id=None, resume=0.0, duration=0.0, title=
         playlist_tracks, playlist_duration = build_multi_track_playlist(client, item, play_payload, info, art)
         if playlist_tracks:
             start_track = select_multi_track_start(playlist_tracks, resume)
+            utils.debug(
+                "Multi-track start item_id=%s start_title=%s start_offset=%.2f resume=%.2f"
+                % (
+                    item_id,
+                    start_track.get("title") or "",
+                    _as_float(start_track.get("start"), 0.0),
+                    _as_float(resume, 0.0),
+                )
+            )
             li = build_track_listitem(start_track)
             queue_playback_monitor(
                 item_id=item_id,
@@ -2231,10 +2299,18 @@ def run():
             return
 
         if action == "play":
+            item_id = p.get("item_id", "")
+            episode_id = p.get("episode_id") or None
+            if _should_skip_duplicate_play(item_id, episode_id):
+                utils.debug(
+                    "Router action=play ignored item_id=%s episode_id=%s params=%s"
+                    % (item_id, episode_id or "", p)
+                )
+                return
             play_item(
                 require_client(),
-                item_id=p.get("item_id", ""),
-                episode_id=p.get("episode_id") or None,
+                item_id=item_id,
+                episode_id=episode_id,
                 resume=utils.as_seconds(p.get("resume", 0)),
                 duration=utils.as_seconds(p.get("duration", 0)),
                 title=p.get("title", ""),

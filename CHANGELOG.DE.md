@@ -6,6 +6,11 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.48 - 2026-04-01
+
+- Duplicate-Play-Schutz ergänzt, der unmittelbar wiederholte `action=play`-Aufrufe für dasselbe Item unterdrückt und so unbeabsichtigte Neustarts bei Sekunde `0` verhindert.
+- Detaillierte Playback-Debug-Logs für Resume-Auswertung und Play-Entscheidung ergänzt (`incoming`, API-Fallback, gewählter Start-Track sowie finale Resume-/Duration-Werte).
+
 ## 0.1.47 - 2026-04-01
 
 - Resume-Zuverlässigkeit bei der Hörbuchwiedergabe behoben, indem Fortschrittspositionen aus personalisierten/Weiterhören-Listen erhalten und an die Play-Route weitergereicht werden.
