@@ -149,20 +149,33 @@ def item_kind(item, episode=None):
     item = _as_item(item) or {}
     media = item.get("media") or {}
     metadata = media.get("metadata") or {}
-    text = " ".join(
-        str(value or "")
-        for value in (
-            item.get("mediaType"),
-            item.get("libraryMediaType"),
-            media.get("mediaType"),
-            item.get("type"),
-            metadata.get("podcastName"),
-            metadata.get("seriesName"),
-        )
-    ).lower()
-    if "podcast" in text:
+
+    for candidate in (
+        item.get("mediaType"),
+        item.get("libraryItemType"),
+        item.get("libraryMediaType"),
+        item.get("type"),
+        media.get("mediaType"),
+        media.get("type"),
+        metadata.get("mediaType"),
+        metadata.get("type"),
+        metadata.get("podcastType"),
+    ):
+        text = str(candidate or "").strip().lower()
+        if "podcast" in text:
+            return "podcast"
+        if "book" in text or "audio" in text:
+            return "audiobook"
+
+    if isinstance(media.get("episodes"), list) and media.get("episodes"):
         return "podcast"
-    if "book" in text or "audiobook" in text:
+    if metadata.get("podcastName") or metadata.get("podcast"):
+        return "podcast"
+    if isinstance(media.get("tracks"), list) and media.get("tracks"):
+        return "audiobook"
+    if isinstance(media.get("audioFiles"), list) and media.get("audioFiles"):
+        return "audiobook"
+    if metadata.get("authorName") or metadata.get("seriesName") or metadata.get("authors"):
         return "audiobook"
     return "unknown"
 

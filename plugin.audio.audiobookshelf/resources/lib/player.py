@@ -148,6 +148,14 @@ class AbsPlayerMonitor(xbmc.Monitor):
             playing = self.player.isPlayingAudio()
             if playing:
                 last_playing = time.time()
+                try:
+                    current_time, total_time = self._combined_position()
+                    self._last_current_time = max(self._last_current_time, current_time)
+                    self._last_total_time = max(self._last_total_time, total_time)
+                except RuntimeError:
+                    pass
+                except Exception as exc:
+                    utils.debug("Could not sample current playback position: %s" % exc)
             elif (time.time() - last_playing) > 1.0 and self._should_continue_with_next_track():
                 if self._play_track(self._next_track()):
                     last_playing = time.time()
@@ -189,6 +197,9 @@ class AbsPlayerMonitor(xbmc.Monitor):
                 current_time, total_time = self._combined_position()
                 self._last_current_time = max(self._last_current_time, current_time)
                 self._last_total_time = max(self._last_total_time, total_time)
+            if final and current_time <= 0 and total_time <= 0:
+                utils.debug("Skipping final progress sync because no playback position was captured")
+                return
             is_finished = False
             if total_time > 0:
                 is_finished = (current_time / total_time) * 100.0 >= self.finished_threshold

@@ -14,6 +14,22 @@ class AbsApiError(Exception):
     pass
 
 
+KODI_SUPPORTED_MIME_TYPES = [
+    "audio/flac",
+    "audio/mpeg",
+    "audio/mp4",
+    "audio/ogg",
+    "audio/aac",
+    "audio/x-m4a",
+    "audio/x-m4b",
+    "audio/opus",
+    "audio/webm",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/x-flac",
+]
+
+
 class AbsClient:
     def __init__(self):
         self.addon = xbmcaddon.Addon()
@@ -224,7 +240,17 @@ class AbsClient:
         path = "/api/items/%s/play" % item_id
         if episode_id:
             path = "/api/items/%s/play/%s" % (item_id, episode_id)
-        payload = {"deviceInfo": {"clientName": "Kodi", "clientVersion": "1.0", "manufacturer": "Kodi", "model": "Kodi", "sdkVersion": "1.0"}}
+        payload = {
+            "deviceInfo": {
+                "clientName": "Kodi",
+                "clientVersion": self.addon.getAddonInfo("version") or "1.0",
+                "deviceId": "plugin.audio.audiobookshelf",
+                "manufacturer": "Kodi",
+                "model": "Kodi",
+            },
+            "mediaPlayer": "kodi",
+            "supportedMimeTypes": list(KODI_SUPPORTED_MIME_TYPES),
+        }
         return self.post(path, payload=payload)
 
     def patch_progress(self, item_id, current_time, duration, is_finished=False, episode_id=None):
