@@ -6,6 +6,12 @@ Alle wichtigen Änderungen an `plugin.audio.audiobookshelf` werden in dieser Dat
 
 ## Unveröffentlicht
 
+## 0.1.49 - 2026-05-09
+
+- Die Erkennung des Medientyps wurde korrigiert, sodass Podcast-Einträge auch bei unvollständigen oder ungewöhnlich aufgebauten ABS-Metadaten nicht mehr in Hörbuch-Ansichten auftauchen.
+- ABS-`/play`-Anfragen senden jetzt `supportedMimeTypes` und vollständigere Client-Playback-Metadaten, was serverseitige Direct-Play-MIME-Fehler vermeidet und die FLAC-Quellwahl verbessert.
+- Das Playback-Monitoring für den Fortschritt wurde gehärtet, damit beim finalen Sync nach kurzen Wiedergabe-/Seek-Zyklen die zuletzt erfasste Position erhalten bleibt statt auf veraltete oder leere Werte zurückzufallen.
+
 ## 0.1.48 - 2026-04-01
 
 - Duplicate-Play-Schutz ergänzt, der unmittelbar wiederholte `action=play`-Aufrufe für dasselbe Item unterdrückt und so unbeabsichtigte Neustarts bei Sekunde `0` verhindert.

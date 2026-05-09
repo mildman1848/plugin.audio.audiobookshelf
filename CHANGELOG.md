@@ -6,6 +6,12 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.1.49 - 2026-05-09
+
+- Fixed media kind detection so podcast items no longer leak into audiobook views when ABS metadata is incomplete or oddly shaped.
+- Added `supportedMimeTypes` and richer client playback metadata to ABS `/play` requests, preventing server-side direct-play MIME errors and improving FLAC source selection.
+- Hardened playback monitor progress tracking so resumed playback keeps the latest captured position for final sync instead of falling back to stale or empty values after short playback/seek cycles.
+
 ## 0.1.48 - 2026-04-01
 
 - Added duplicate-play guard logic to suppress immediate repeated `action=play` calls for the same item, preventing unintended restart-at-zero behavior.
