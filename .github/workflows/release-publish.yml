@@ -17,7 +17,7 @@ jobs:
       ADDON_PATH: plugin.audio.audiobookshelf
     steps:
       - name: Check out source repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -65,7 +65,7 @@ jobs:
           fi
 
       - name: Check out Kodi repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: mildman1848/mildman1848.github.io
           token: ${{ secrets.KODI_REPO_TOKEN }}
